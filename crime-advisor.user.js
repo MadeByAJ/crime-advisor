@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      1.2.1
+// @version      1.2.2
 // @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -753,8 +753,7 @@ else (function main() {
   const ACCIDENT = /accident|insurance/i;
   const flameBanned = (needs, v) => needs.some(n => ACCIDENT.test(n)) && !!v.community &&
     v.community.steps.some(([k, t]) => /^(Ignite|Stoke)$/.test(k) && /flamethrower/i.test(t));
-  // Disposal: the method with the best expected $/nerve for a job, short on its button ("$19k/nerve \u00b7 abandon").
-  const HOW = { Abandoning: "abandon", Burying: "bury", Burning: "burn", Sinking: "sink", Dissolving: "dissolve" };
+  // Disposal: each method's reliability, nerve and expected $/nerve, in the card (not a pick: cheap abandoning tops nearly everything).
   // How reliable a method is (the community chart blended with your own record): the chart's colours.
   const RELY = p => p == null ? ["#6e7681", "not enough data"] : p >= 0.9 ? ["#3fb950", "very likely to work"]
     : p >= 0.78 ? ["#e3d341", "works, with caution"] : p >= 0.5 ? ["#e8913a", "works but fails often"] : ["#e5484d", "fails almost every time"];
@@ -771,22 +770,19 @@ else (function main() {
       dot.style.background = col; dot.title = word;
       name.append(dot, m.method + (m.star ? " \u2605" : ""));
       if (m.star) name.title = "A unique outcome can turn up here";
-      if (m.method === v.best) name.append($("span", "ca-tag good", "best $/nerve"));
-      else if (m.method === v.steady) name.append($("span", "ca-tag", "steadiest"));
       const cell = (txt, tip) => { const td = $("td", "", txt); if (tip) td.title = tip; return td; };
       tr.append(name,
         cell(m.p == null ? "\u2013" : `${Math.round(m.p * 100)}%`, `${word}: ${m.tries ? `${m.ok} of your ${m.tries} worked` : "you haven't tried it"}; the community chart counts as 8 tries`),
         cell(String(Math.round(m.nerve))),
         cell(m.ev == null ? "\u2013" : `${m.tries ? "" : "~"}${short(m.ev)}/n`, m.tries ? "chance it works x what the job pays, less the materials you used, over the nerve" : "chance it works x what the job pays, over the nerve: before materials (you have not tried it, so their cost is unknown)"),
         cell(m.tries ? String(m.crits) : "\u2013", "critical fails: jail or hospital"));
-      if (m.method === v.best) tr.className = "ca-best";
       t.append(tr);
     }
     box.append(t, $("div", "ca-muted", (v.pay ? `This job pays you ~${short(v.pay)} whichever way. ` : "") +
       "Cheaper methods can beat surer ones per nerve. Colours: the community chart, updated by your own results."));
     return box;
   }
-  // A reliability dot on each method's icon on the page, and a gold ring on the best $/nerve one. The icons are found
+  // A reliability dot on each method's icon on the page. The icons are found
   // by their labels ("Abandon", "Bury"...); if Torn's labels don't say, nothing is drawn (the card still has it all).
   const VERB = { Abandoning: /abandon|leave/i, Burying: /bury/i, Burning: /burn/i, Sinking: /sink/i, Dissolving: /dissolv/i };
   function markMethods(row, v) {
@@ -798,7 +794,6 @@ else (function main() {
       const [col, word] = RELY(m.p), dot = $("span", "ca-mdot");
       dot.style.background = col; dot.title = `${m.method}: ${word}`;
       if (getComputedStyle(icon).position === "static") icon.style.position = "relative";
-      if (m.method === v.best) icon.style.boxShadow = "0 0 0 2px #e3b341";
       icon.appendChild(dot);
     }
   }
@@ -826,7 +821,7 @@ else (function main() {
       b.dataset.v = version;
       if (noFT) b.title = "Accidental cause: the community recipe uses the Flamethrower, which fails it. Ignite and stoke with a Lighter.";
       b.textContent = (noFT ? "\u26a0 " : "") + (short100 ? `fell short ${pct}%` : v.per_nerve < 0 ? "lost money" : `${short(v.per_nerve)}/nerve`)
-        + (v.best ? ` \u00b7 ${HOW[v.best] || v.best.toLowerCase()}` : "") + " \u25be";
+        + " \u25be";
       b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null); };
       el.appendChild(b);
       if (v.methods) markMethods(row, v);

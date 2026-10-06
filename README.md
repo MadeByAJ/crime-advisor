@@ -28,7 +28,7 @@ A Limited key won't work: Torn only shows crime logs to keys with log access. A 
 | **Grey** | Below your usual, too little history to judge, or new to you (the card then shows the community's numbers). "lost money" means materials cost more than it paid. |
 | **Red** | An arson job that needs total destruction and stopped short of 100%. It won't pay. |
 
-On the Disposal page each job's button also names the method with the best expected $/nerve (`$19k/nerve · abandon`); its card rates every method by reliability, nerve and expected value, with a dot on each method's icon where Torn labels them. Graffiti is valued by district.
+On the Disposal page each method's icon gets a reliability dot (the community chart's colours, updated by your own results), and each job's card rates every method by reliability, nerve, expected $/nerve and critical fails. Graffiti is valued by district.
 
 The **Crime Advisor** button in the bottom-left opens a panel with your key, how far the download has got, and your $/nerve per crime, all time and for the last 30 days.
 
@@ -54,7 +54,7 @@ Each browser keeps its own copy, so a second computer downloads your history aga
 ## What's new in 1.2.0
 
 - **Disposal works for every job.** Only Broken Appliance and Firearm got a button before: the logs say "abandoning *some* general waste", and the script didn't match that to the page's General Waste.
-- **Which disposal method to use.** Each job's button names the method with the best expected $/nerve, and its card rates every method: how reliable it is (colour), the nerve it costs, the expected $/nerve and your critical fails. Reliability starts from the community's disposal chart (Feb 2024, 35,517 disposals) and follows your own results as you build history. Cheap and shaky can beat sure and dear: abandoning a dead body (6 nerve, ~80%) usually beats burning it (10 nerve, ~90%), which is why veterans leave them.
+- **Disposal method ratings.** Each method's icon gets a reliability dot, and each job's card rates every method: how reliable it is, the nerve it costs, the expected $/nerve and your critical fails. Reliability starts from the community's disposal chart (Feb 2024, 35,517 disposals) and follows your own results. Cheap and shaky can beat sure and dear per nerve: abandoning a dead body (6 nerve, ~80%) usually beats burning it (10 nerve, ~90%), which is why veterans leave them.
 - **Newer forgery projects are counted.** Steps like holographing a Travel Visa, programming or chipping an ID Badge, casting or polishing a Skeleton Key, framing, branding and gluing weren't recognised: their nerve was left out, so Forgery read higher than it should.
 - **Bootlegging's online store is counted.** Setting up the store and collecting its funds were left out, so Bootlegging read lower than it should.
 - **Arson: no Flamethrower on accidental jobs (1.2.1).** When a job's requirements call for an accidental cause or insurance and the community recipe lights or stokes with the Flamethrower, its button shows a warning and the card swaps in a Lighter: the Flamethrower isn't accidental, so it fails the job.

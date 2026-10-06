@@ -116,7 +116,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
     <h1>Crime Advisor</h1>
     <p class="lede">A small button next to every job, scam, search spot and shop on the Crimes pages shows what it has paid you per nerve. Click it for the full story: your history, the requirements, and the community's arson recipe.</p>
-    <div class="meta"><span>v1.2.1</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v1.2.2</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -166,11 +166,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 852 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 847 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      1.2.1
+// @version      1.2.2
 // @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -922,8 +922,7 @@ else (function main() {
   const ACCIDENT = /accident|insurance/i;
   const flameBanned = (needs, v) =&gt; needs.some(n =&gt; ACCIDENT.test(n)) &amp;&amp; !!v.community &amp;&amp;
     v.community.steps.some(([k, t]) =&gt; /^(Ignite|Stoke)$/.test(k) &amp;&amp; /flamethrower/i.test(t));
-  // Disposal: the method with the best expected $/nerve for a job, short on its button ("$19k/nerve \u00b7 abandon").
-  const HOW = { Abandoning: "abandon", Burying: "bury", Burning: "burn", Sinking: "sink", Dissolving: "dissolve" };
+  // Disposal: each method's reliability, nerve and expected $/nerve, in the card (not a pick: cheap abandoning tops nearly everything).
   // How reliable a method is (the community chart blended with your own record): the chart's colours.
   const RELY = p =&gt; p == null ? ["#6e7681", "not enough data"] : p &gt;= 0.9 ? ["#3fb950", "very likely to work"]
     : p &gt;= 0.78 ? ["#e3d341", "works, with caution"] : p &gt;= 0.5 ? ["#e8913a", "works but fails often"] : ["#e5484d", "fails almost every time"];
@@ -940,22 +939,19 @@ else (function main() {
       dot.style.background = col; dot.title = word;
       name.append(dot, m.method + (m.star ? " \u2605" : ""));
       if (m.star) name.title = "A unique outcome can turn up here";
-      if (m.method === v.best) name.append($("span", "ca-tag good", "best $/nerve"));
-      else if (m.method === v.steady) name.append($("span", "ca-tag", "steadiest"));
       const cell = (txt, tip) =&gt; { const td = $("td", "", txt); if (tip) td.title = tip; return td; };
       tr.append(name,
         cell(m.p == null ? "\u2013" : `${Math.round(m.p * 100)}%`, `${word}: ${m.tries ? `${m.ok} of your ${m.tries} worked` : "you haven't tried it"}; the community chart counts as 8 tries`),
         cell(String(Math.round(m.nerve))),
         cell(m.ev == null ? "\u2013" : `${m.tries ? "" : "~"}${short(m.ev)}/n`, m.tries ? "chance it works x what the job pays, less the materials you used, over the nerve" : "chance it works x what the job pays, over the nerve: before materials (you have not tried it, so their cost is unknown)"),
         cell(m.tries ? String(m.crits) : "\u2013", "critical fails: jail or hospital"));
-      if (m.method === v.best) tr.className = "ca-best";
       t.append(tr);
     }
     box.append(t, $("div", "ca-muted", (v.pay ? `This job pays you ~${short(v.pay)} whichever way. ` : "") +
       "Cheaper methods can beat surer ones per nerve. Colours: the community chart, updated by your own results."));
     return box;
   }
-  // A reliability dot on each method's icon on the page, and a gold ring on the best $/nerve one. The icons are found
+  // A reliability dot on each method's icon on the page. The icons are found
   // by their labels ("Abandon", "Bury"...); if Torn's labels don't say, nothing is drawn (the card still has it all).
   const VERB = { Abandoning: /abandon|leave/i, Burying: /bury/i, Burning: /burn/i, Sinking: /sink/i, Dissolving: /dissolv/i };
   function markMethods(row, v) {
@@ -967,7 +963,6 @@ else (function main() {
       const [col, word] = RELY(m.p), dot = $("span", "ca-mdot");
       dot.style.background = col; dot.title = `${m.method}: ${word}`;
       if (getComputedStyle(icon).position === "static") icon.style.position = "relative";
-      if (m.method === v.best) icon.style.boxShadow = "0 0 0 2px #e3b341";
       icon.appendChild(dot);
     }
   }
@@ -995,7 +990,7 @@ else (function main() {
       b.dataset.v = version;
       if (noFT) b.title = "Accidental cause: the community recipe uses the Flamethrower, which fails it. Ignite and stoke with a Lighter.";
       b.textContent = (noFT ? "\u26a0 " : "") + (short100 ? `fell short ${pct}%` : v.per_nerve &lt; 0 ? "lost money" : `${short(v.per_nerve)}/nerve`)
-        + (v.best ? ` \u00b7 ${HOW[v.best] || v.best.toLowerCase()}` : "") + " \u25be";
+        + " \u25be";
       b.onclick = e =&gt; { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null); };
       el.appendChild(b);
       if (v.methods) markMethods(row, v);
@@ -1062,7 +1057,7 @@ else (function main() {
     <h2 id="new">What's new in 1.2.0</h2>
     <ul>
       <li><b>Disposal works for every job.</b> Only Broken Appliance and Firearm got a button before: the logs say "abandoning <i>some</i> general waste", which didn't match the page's General Waste. </li>
-      <li><b>Which disposal method to use.</b> Each job's button names the method with the best expected $/nerve (<code>$19k/nerve &middot; abandon</code>), and its card rates every method: reliability (the chart's colours), nerve, expected $/nerve and your critical fails. Reliability starts from the community's disposal chart (Feb 2024, 35,517 disposals) and follows your own results. Cheap and shaky can beat sure and dear: abandoning a dead body (6 nerve, ~80%) usually beats burning it (10 nerve, ~90%), which is why veterans leave them.</li>
+      <li><b>Disposal method ratings.</b> Each method's icon gets a reliability dot, and each job's card rates every method: how reliable it is, the nerve it costs, the expected $/nerve and your critical fails. Reliability starts from the community's disposal chart (Feb 2024, 35,517 disposals) and follows your own results. Cheap and shaky can beat sure and dear per nerve: abandoning a dead body (6 nerve, ~80%) usually beats burning it (10 nerve, ~90%), which is why veterans leave them.</li>
       <li><b>Newer forgery projects are counted.</b> Holographing a Travel Visa, programming or chipping an ID Badge, casting or polishing a Skeleton Key, framing, branding and gluing weren't recognised: their nerve was left out, so Forgery read higher than it should.</li>
       <li><b>Bootlegging's online store is counted.</b> Setting it up and collecting its funds were left out, so Bootlegging read lower than it should.</li>
       <li><b>Arson: no Flamethrower on accidental jobs (1.2.1).</b> When a job's requirements call for an accidental cause or insurance and the community recipe lights or stokes with the Flamethrower, its button shows a warning and the card swaps in a Lighter: the Flamethrower isn't accidental, so it fails the job.</li>
