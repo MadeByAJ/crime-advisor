@@ -57,6 +57,7 @@ Each browser keeps its own copy, so a second computer downloads your history aga
 - **Which disposal method to use.** Each job's button names the method with the best expected $/nerve, and its card rates every method: how reliable it is (colour), the nerve it costs, the expected $/nerve and your critical fails. Reliability starts from the community's disposal chart (Feb 2024, 35,517 disposals) and follows your own results as you build history. Cheap and shaky can beat sure and dear: abandoning a dead body (6 nerve, ~80%) usually beats burning it (10 nerve, ~90%), which is why veterans leave them.
 - **Newer forgery projects are counted.** Steps like holographing a Travel Visa, programming or chipping an ID Badge, casting or polishing a Skeleton Key, framing, branding and gluing weren't recognised: their nerve was left out, so Forgery read higher than it should.
 - **Bootlegging's online store is counted.** Setting up the store and collecting its funds were left out, so Bootlegging read lower than it should.
+- **Arson: no Flamethrower on accidental jobs (1.2.1).** When a job's requirements call for an accidental cause or insurance and the community recipe lights or stokes with the Flamethrower, its button shows a warning and the card swaps in a Lighter: the Flamethrower isn't accidental, so it fails the job.
 - **Graffiti by district.** Each district on the Graffiti page gets its own button.
 
 Your stored logs are re-read with the new rules, so nothing needs re-downloading: paste the new version over the old one.

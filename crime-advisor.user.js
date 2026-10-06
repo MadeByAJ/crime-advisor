@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      1.2.0
+// @version      1.2.1
 // @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -611,6 +611,7 @@ else (function main() {
     .ca-mdot{position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #1a1a19;pointer-events:none;z-index:2}
     .ca-tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;font:600 10px/1.6 system-ui,sans-serif;background:#2c2c2a;color:#e8e8e4}
     .ca-tag.good{background:#1d5e3a;color:#d9ffe9}
+    .ca-verdict.ca-warn{background:#5a4712!important;color:#ffe9a8!important}
     .ca-req{display:inline-block;background:#3a2f12;color:#ffe9a8;border-radius:999px;padding:1px 8px;margin:0 4px 4px 0;font-size:11px}
     /* Torn's own stylesheet (dark mode tables, headings) wins otherwise: pin what matters */
     .ca-panel td,.ca-pop dd,.ca-verdict{color:#f3f3f1!important;background:none!important;font-size:13px!important}
@@ -730,9 +731,11 @@ else (function main() {
     if (needs.length) { pop.append($("div", "ca-sec", "Needs")); const d = $("div"); needs.forEach(n => d.append($("span", "ca-req", n))); pop.append(d); }
     const c = v.community;
     if (c) {
+      const noFT = flameBanned(needs, v);
+      if (noFT) pop.append($("div", "ca-verdict ca-warn", "\u26a0 Accidental cause: the Flamethrower isn't accidental, so lighting or stoking with it fails the job. Use a Lighter."));
       const sec = $("div", "ca-sec", "Community recipe ");
       sec.append($("span", "", `\u00b7 pays ${short(c.min)}\u2013${short(c.max)}` + (c.per_nerve != null ? ` \u00b7 ~${short(c.per_nerve)}/nerve` : "")));
-      pop.append(sec, dl(c.steps));
+      pop.append(sec, dl(c.steps.map(([k, t]) => [k, noFT && /^(Ignite|Stoke)$/.test(k) ? t.replace(/flamethrower/ig, "Lighter (not the Flamethrower)") : t])));
     }
     if (v.recipe || v.tend) { pop.append($("div", "ca-sec", "Your record")); pop.append(dl([["Winning recipe", v.recipe], ["Tending", v.tend]])); }
     body.appendChild(pop);
@@ -744,6 +747,12 @@ else (function main() {
   document.addEventListener("keydown", e => { if (e.key === "Escape") closePop(); });
   addEventListener("scroll", closePop, { passive: true });
 
+  // A job that must look accidental (an insurance job) fails if it's lit or stoked with the Flamethrower, though the
+  // community recipe often says to. When the job's requirements say so and the recipe uses one, the button warns and
+  // the card swaps in a Lighter. (Any requirement mentioning "accident" or "insurance" counts.)
+  const ACCIDENT = /accident|insurance/i;
+  const flameBanned = (needs, v) => needs.some(n => ACCIDENT.test(n)) && !!v.community &&
+    v.community.steps.some(([k, t]) => /^(Ignite|Stoke)$/.test(k) && /flamethrower/i.test(t));
   // Disposal: the method with the best expected $/nerve for a job, short on its button ("$19k/nerve \u00b7 abandon").
   const HOW = { Abandoning: "abandon", Burying: "bury", Burning: "burn", Sinking: "sink", Dissolving: "dissolve" };
   // How reliable a method is (the community chart blended with your own record): the chart's colours.
@@ -811,10 +820,12 @@ else (function main() {
       const { needs, row } = requirements(el, byName);
       const text = row.textContent || "", pct = +((text.match(/(\d{1,3})%/) || [])[1] ?? NaN);
       const short100 = needs.some(n => /total destruction/i.test(n)) && /COLLECT/.test(text) && pct < 100;
-      const b = $("button", "ca-chip " + (short100 ? "bad" : v.worth ? "good" : !v.few && v.vs_crime >= 1 ? "mid" : ""));
+      const noFT = flameBanned(needs, v);
+      const b = $("button", "ca-chip " + (short100 ? "bad" : noFT ? "mid" : v.worth ? "good" : !v.few && v.vs_crime >= 1 ? "mid" : ""));
       b.type = "button";
       b.dataset.v = version;
-      b.textContent = (short100 ? `fell short ${pct}%` : v.per_nerve < 0 ? "lost money" : `${short(v.per_nerve)}/nerve`)
+      if (noFT) b.title = "Accidental cause: the community recipe uses the Flamethrower, which fails it. Ignite and stoke with a Lighter.";
+      b.textContent = (noFT ? "\u26a0 " : "") + (short100 ? `fell short ${pct}%` : v.per_nerve < 0 ? "lost money" : `${short(v.per_nerve)}/nerve`)
         + (v.best ? ` \u00b7 ${HOW[v.best] || v.best.toLowerCase()}` : "") + " \u25be";
       b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null); };
       el.appendChild(b);
