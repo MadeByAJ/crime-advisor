@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crime Advisor for Torn</title>
+<meta name="description" content="Your own $/nerve for every crime, arson job, scam and disposal method, right on Torn's crime pages. Read-only; your data stays in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tornbrain.com/">
+<meta property="og:title" content="Crime Advisor for Torn">
+<meta property="og:description" content="Your own $/nerve for every crime, arson job, scam and disposal method, right on Torn's crime pages. Read-only; your data stays in your browser.">
+<meta name="theme-color" content="#1a1a19">
+<style>[hidden]{display:none!important}img{max-width:100%}.btn.install{display:inline-block;font-size:15px;padding:10px 18px;text-decoration:none}</style>
+<title>Crime Advisor Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --ink:#1d1f1c; --ink-2:#4b4f48; --muted:#71766d; --line:#dcdfd7;
+  --accent:#1f64b8; --accent-ink:#ffffff; --code-bg:#1a1a19; --code-ink:#e8e8e4;
+  --good-bg:#1d5e3a; --good-ink:#d9ffe9; --mid-bg:#5a4712; --mid-ink:#ffe9a8; --bad-bg:#6b2020; --bad-ink:#ffd6d6;
+  --plain-bg:#2c2c2a; --plain-ink:#b5b4ad; --warn:#8a5a00;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#141513; --surface:#1c1d1b; --ink:#eeefeb; --ink-2:#c3c6be; --muted:#8f948a; --line:#30322e;
+    --accent:#8fc0ff; --accent-ink:#0f1a2a; --code-bg:#0e0f0d; --code-ink:#e8e8e4; --warn:#f0c060;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#141513; --surface:#1c1d1b; --ink:#eeefeb; --ink-2:#c3c6be; --muted:#8f948a; --line:#30322e;
+  --accent:#8fc0ff; --accent-ink:#0f1a2a; --code-bg:#0e0f0d; --code-ink:#e8e8e4; --warn:#f0c060;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:17px/1.6 var(--body);margin:0}
+.wrap{max-width:760px;margin:0 auto;padding-inline:20px;padding-block:40px 64px;display:grid;gap:44px}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(40px,8vw,58px)}
+h2{font-size:30px}
+h3{font-size:17px;margin:0}
+p{margin:0;max-width:65ch}
+code,kbd{font-family:var(--mono);font-size:.84em;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.eyebrow{font:600 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+section{display:grid;gap:16px}
+header{display:grid;gap:14px}
+header .lede{font-size:19px;color:var(--ink-2)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;font:13px var(--mono);color:var(--muted)}
+
+/* install steps: a real sequence */
+ol.steps{list-style:none;margin:0;padding:0;display:grid;gap:18px;counter-reset:s}
+ol.steps>li{display:grid;grid-template-columns:34px 1fr;gap:12px;counter-increment:s}
+ol.steps>li::before{content:counter(s);font:700 20px/34px var(--display);text-align:center;width:34px;height:34px;border-radius:50%;
+  background:var(--ink);color:var(--bg)}
+ol.steps>li>div{display:grid;gap:6px;padding-top:4px;min-width:0}
+ol.steps ul{margin:0;padding-left:20px}
+
+.script{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--code-bg)}
+.script-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #2c2c2a}
+.script-bar span{font:12px var(--mono);color:#a3a39b}
+.script textarea{display:block;width:100%;height:190px;border:0;resize:vertical;background:var(--code-bg);color:var(--code-ink);
+  font:12px/1.5 var(--mono);padding:12px;white-space:pre;overflow:auto}
+.btn{font:600 14px var(--body);background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+#copy-note{font:12px var(--mono);color:#9fd9b4}
+
+/* the in-game look: these mirror the script's own styles */
+.game{background:#1a1a19;color:#f3f3f1;border-radius:10px;padding:18px;display:grid;gap:14px;font:13px/1.45 system-ui,sans-serif}
+.game .label{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#8f8e86}
+.jobrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;background:#232321;border-radius:6px}
+.jobrow b{font-weight:600}
+.jobrow .pct{margin-left:auto;color:#b5b4ad;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;font:600 11px/1.6 system-ui,sans-serif;white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good-ink)} .chip.mid{background:var(--mid-bg);color:var(--mid-ink)}
+.chip.bad{background:var(--bad-bg);color:var(--bad-ink)} .chip.plain{background:var(--plain-bg);color:var(--plain-ink)}
+.card{background:#1a1a19;border:1px solid #3a3a37;border-radius:10px;padding:12px 14px;max-width:340px;display:grid;gap:8px}
+.card h5{margin:0;font-size:13px;color:#9cc8ff}
+.card .verdict{padding:6px 10px;border-radius:6px;background:#232321}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0}.card dt{color:#8f8e86}.card dd{margin:0}
+.card .sec{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8f8e86}
+.card .req{display:inline-block;background:#3a2f12;color:#ffe9a8;border-radius:999px;padding:1px 8px;font-size:11px}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;align-items:start}
+.example-tag{font:11px var(--mono);color:#8f8e86}
+
+.legend{display:grid;gap:10px;margin:0}
+.legend>div{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:baseline}
+.legend dt{margin:0}.legend dd{margin:0;color:var(--ink-2)}
+
+.facts{width:100%;border-collapse:collapse;font-size:15px}
+.facts th,.facts td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+.facts th{width:34%;font-weight:600}
+.table-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.facts tr:last-child th,.facts tr:last-child td{border-bottom:0}
+
+.faq{display:grid;gap:0;margin:0;border-top:1px solid var(--line)}
+.faq>div{display:grid;gap:4px;padding:14px 0;border-bottom:1px solid var(--line)}
+.faq dt{font-weight:600}.faq dd{margin:0;color:var(--ink-2);max-width:65ch}
+.note{border-left:3px solid var(--warn);padding:2px 0 2px 14px;color:var(--ink-2)}
+footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
+@media (max-width:480px){ .legend>div{grid-template-columns:1fr;gap:2px} body{font-size:16px} }
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
+    <h1>Crime Advisor</h1>
+    <p class="lede">A small button next to every job, scam, search spot and shop on the Crimes pages shows what it has paid you per nerve. Click it for the full story: your history, the requirements, and the community's arson recipe.</p>
+    <div class="meta"><span>v1.2.0</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+  </header>
+
+  <section aria-labelledby="look">
+    <h2 id="look">What you'll see</h2>
+    <div class="game">
+      <div class="split">
+        <div style="display:grid;gap:8px">
+          <div class="label">On the Arson page <span class="example-tag">(example numbers)</span></div>
+          <div class="jobrow"><b>Factory</b><span>Apart of the Problem</span><span class="chip good">$20.4k/nerve &#9662;</span></div>
+          <div class="jobrow"><b>Bank</b><span>Smoke Screen</span><span class="chip mid">$6.4k/nerve &#9662;</span></div>
+          <div class="jobrow"><b>Toy Shop</b><span>Blaze of Glory</span><span class="chip bad">fell short 97% &#9662;</span><span class="pct">97%</span></div>
+          <div class="jobrow"><b>Bungalow</b><span>Up in Smoke</span><span class="chip plain">$1.2k/nerve &#9662;</span></div>
+        </div>
+        <div class="card" aria-label="Example card">
+          <h5>Factory (Apart of the Problem)</h5>
+          <div class="verdict">Worth it: above your usual for this crime and your average across crimes.</div>
+          <dl><dt>Your $/nerve</dt><dd>$20.4k &middot; 1.4&times; your usual</dd>
+              <dt>Your history</dt><dd>3 jobs &middot; about $390k each &middot; 100% paid</dd></dl>
+          <div class="sec">Needs</div>
+          <div><span class="req">High visibility</span></div>
+          <div class="sec">Community recipe &middot; pays $380k&ndash;$420k</div>
+          <dl><dt>Place</dt><dd>2&times; Diesel</dd><dt>Ignite</dt><dd>Flamethrower</dd><dt>Stoke</dt><dd>1&times; Diesel, early</dd></dl>
+        </div>
+      </div>
+    </div>
+
+    <dl class="legend">
+      <div><dt><span class="chip good">green</span></dt><dd>Worth it. Above your usual for that crime and above your average across all crimes.</dd></div>
+      <div><dt><span class="chip mid">amber</span></dt><dd>Beats your usual for that crime, but your other crimes pay better per nerve.</dd></div>
+      <div><dt><span class="chip plain">grey</span></dt><dd>Below your usual, too little history to judge, or new to you (the card then shows the community's numbers). A grey "lost money" means materials cost more than it paid.</dd></div>
+      <div><dt><span class="chip bad">red</span></dt><dd>An arson job that needs total destruction and stopped short of 100%. It won't pay.</dd></div>
+    </dl>
+    <p>A <b>Crime Advisor</b> button sits in the bottom-left corner of the Crimes pages. It opens a panel with your API key, how far the log download has got, and a table of your $/nerve per crime, all time and for the last 30 days.</p>
+    <p>The numbers are net. Materials you used (fuels, candles, email lists) are subtracted and item rewards are counted, both at today's market price. Scamming includes the nerve spent farming emails and sending spam waves.</p>
+  </section>
+
+  <section aria-labelledby="install">
+    <h2 id="install">Install</h2>
+    <ol class="steps">
+      <li><div>
+        <h3>Get Tampermonkey</h3>
+        <p>Install the Tampermonkey extension for Chrome, Edge or Firefox from <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">tampermonkey.net</a>. In Chrome and Edge, also turn on <b>Allow user scripts</b> (or Developer mode) for the extension when it asks.</p>
+      </div></li>
+      <li><div>
+        <h3>Add the script</h3>
+        <p><a class="btn install" href="crime-advisor.user.js">Install Crime Advisor</a></p>
+        <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
+        <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
+        <div class="script">
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 841 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
+// @name         Crime Advisor ($/nerve)
+// @namespace    ajthesecond.crime-advisor
+// @version      1.2.0
+// @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
+// @author       AJTheSecond [3395781]
+// @homepageURL  https://tornbrain.com/
+// @updateURL    https://tornbrain.com/crime-advisor.user.js
+// @downloadURL  https://tornbrain.com/crime-advisor.user.js
+// @match        https://www.torn.com/*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @connect      api.torn.com
+// @connect      balaclava.app
+// @run-at       document-idle
+// ==/UserScript==
+
+/*
+ * What it does
+ *   - On Torn's crime pages, a small button next to each arson job, scam type, search spot, shop, document...
+ *     shows YOUR $/nerve for it (from your own crime logs). Click it for a card: the verdict, your history,
+ *     the job's requirements, the community recipe (arson) and your own winning recipe.
+ *   - Arson works even without an API key: requirements, community recipes and "fell short" warnings.
+ *
+ * Your data
+ *   - Your API key is stored by Tampermonkey in this browser and only ever sent to api.torn.com.
+ *   - Your crime logs are copied into this browser's storage (IndexedDB) so it doesn't re-download them.
+ *     Nothing is sent anywhere else. The community recipes are downloaded from balaclava.app (public data).
+ *   - Key: a Custom key with only "log" is enough (Torn requires log access to read crime logs). Torn's form has no
+ *     Custom option: the panel's "Make a log-only key" link opens it pre-filled.
+ *
+ * Read-only: it never clicks, commits a crime or does anything in Torn for you.
+ */
+
+/* global GM_xmlhttpRequest, GM_getValue, GM_setValue, module */
+
+// ======================================================================================================
+// The analysis (pure functions: no browser APIs, so it can be tested outside Torn)
+// ======================================================================================================
+const CA = (() =&gt; {
+  "use strict";
+  const DAY = 86400;
+  const ARSON = 13, SCAMMING = 12, FORGERY = 11, DISPOSAL = 9;
+  const ARSON_EXPIRE = 7 * DAY, SCAM_EXPIRE = DAY, SCAM_LOST_AFTER = 3600, MIN_NERVE = 30;
+  const NAMES = { 1: "Search for Cash", 2: "Bootlegging", 3: "Graffiti", 4: "Shoplifting", 5: "Pickpocketing", 6: "Card Skimming",
+                  7: "Burglary", 8: "Hustling", 9: "Disposal", 10: "Cracking", 11: "Forgery", 12: "Scamming", 13: "Arson" };
+  // Crimes whose every step names what it's done to: $/nerve by that is meaningful. In the others the money lands
+  // on a different step than the nerve (skimming pays when you sell the details), so they're valued as a whole.
+  const KIND_CRIMES = new Set([1, 3, 4, 5, 9, 11]);
+  const J = String.raw`an? (?&lt;d&gt;.+\(.+\))`;
+  const R = (p, crime, action) =&gt; [new RegExp(p, "i"), crime, action];
+  const RULES = [
+    R(`^breaching ${J}$`, ARSON, "Make entry"), R(`^placing a combustible at ${J}$`, ARSON, "Place combustible"),
+    R(`^igniting ${J}$`, ARSON, "Ignite"), R(`^stoking ${J}$`, ARSON, "Stoke"), R(`^dampening ${J}$`, ARSON, "Dampen"),
+    R(`^planting evidence at ${J}$`, ARSON, "Plant evidence"),
+    R(String.raw`^collecting the reward for the (?&lt;d&gt;.+) Arson job$`, ARSON, "Collect"),
+    R(String.raw`^farming email addresses$`, SCAMMING, "Farm emails"),
+    R(String.raw`^sending out an? (?&lt;d&gt;.+?) spam wave$`, SCAMMING, "Spam wave"),
+    R(String.raw`^responding to an? (?&lt;d&gt;.+?) target$`, SCAMMING, "Respond"),
+    R(String.raw`^stencil cutting for an? (?&lt;d&gt;.+)$`, FORGERY, "Stencil cutting"),
+    R(String.raw`^painting the letters of an? (?&lt;d&gt;.+)$`, FORGERY, "Painting letters"),
+    R(String.raw`^(?&lt;a&gt;drafting|typewriting|printing|signing|sealing|stamping|laminating|embossing|forging|designing|cutting|perforating|rubbing|pressing|painting|drilling|engraving|punching|mold forming|casting|filing|polishing|framing|programming|branding|holographing|gluing) an? (?&lt;d&gt;.+)$`, FORGERY, ""),
+    R(String.raw`^extracting a chip for an? (?&lt;d&gt;.+)$`, FORGERY, "Extract chip"), R(String.raw`^embedding a chip into an? (?&lt;d&gt;.+)$`, FORGERY, "Embed chip"),
+    R(String.raw`^setting up an online store$`, 2, "Set up online store"), R(String.raw`^collecting funds from an online store$`, 2, "Collect online store"),
+    R(String.raw`^(?&lt;a&gt;abandoning|burying|burning|dissolving|sinking|feeding|cremating|dumping) (?&lt;d&gt;.+)$`, DISPOSAL, ""),
+    R(String.raw`^(?&lt;a&gt;brute forcing|cracking) an? (?&lt;d&gt;.+)$`, 10, ""),
+    R(String.raw`^gathering audience`, 8, "Gather audience"), R(String.raw`^introducing (?&lt;d&gt;.+)$`, 8, "Introduce game"),
+    R(String.raw`^winning on (?&lt;d&gt;.+)$`, 8, "Win"), R(String.raw`^losing (?:on )?(?&lt;d&gt;.+)$`, 8, "Lose"),
+    R(String.raw`^shoplifting from (?&lt;d&gt;.+)$`, 4, "Shoplift"), R(String.raw`^searching (?:the |an? )?(?&lt;d&gt;.+)$`, 1, "Search"),
+    R(String.raw`^pickpocketing an? (?&lt;d&gt;.+)$`, 5, "Pickpocket"), R(String.raw`^scouting for (?:an? )?(?&lt;d&gt;.+)$`, 7, "Scout"),
+    R(String.raw`^casing an? (?&lt;d&gt;.+)$`, 7, "Case"), R(String.raw`^burgling an? (?&lt;d&gt;.+)$`, 7, "Burgle"),
+    R(String.raw`^(?&lt;a&gt;installing|recovering|retrieving) an? (?:card )?skimmer(?: at an?)? ?(?&lt;d&gt;.*)$`, 6, ""),
+    R(String.raw`^selling card details`, 6, "Sell card details"), R(String.raw`.*(skimm|card details)`, 6, "Other"),
+    R(String.raw`^spraying graffiti in (?:the )?(?&lt;d&gt;.+)$`, 3, "Spray"),  // "spraying graffiti in the Red-Light District"
+    R(String.raw`.*(graffiti|spray|tagging)`, 3, "Other"), R(String.raw`.*(dvd|bootleg)`, 2, "Other"),
+  ];
+  // Log types that aren't actions (no nerve) but belong to a crime; and the ones that used up materials.
+  const EVENT_CRIME = { 9360: ARSON, 9361: ARSON, 9362: ARSON, 9356: SCAMMING, 9309: FORGERY, 9310: FORGERY, 9300: 2, 9308: 2,
+                        9301: 3, 9350: 3, 9351: 3, 9302: 6, 9303: 6, 9304: 9, 9305: 10, 9306: 10, 9307: 10 };
+  const COST_TYPES = new Set([9361, 9310, 9309, 9300, 9301, 9304]);
+
+  const cap = s =&gt; s ? s[0].toUpperCase() + s.slice(1) : s;
+  function classify(action) {
+    const a = action.trim();
+    for (const [rx, crime, label] of RULES) {
+      const m = a.match(rx);
+      if (m) {
+        const g = m.groups || {};
+        let detail = (g.d || "").trim();
+        if (crime === DISPOSAL) detail = cap(detail.replace(/^(a|an|some|the) /i, ""));  // "some general waste": the page's General Waste
+        return { crime, action: label || cap(g.a || ""), detail };
+      }
+    }
+    return { crime: null, action: a, detail: "" };
+  }
+  const resultOf = t =&gt; (t = (t || "").toLowerCase()).includes("critical fail") ? "crit" : t.includes("fail") ? "fail" : "success";
+  function* items(d, keys = ["items_used", "items_added", "items_gained"]) {
+    for (const k of keys) {
+      const v = d[k];
+      if (v &amp;&amp; typeof v === "object") for (const [id, n] of Object.entries(v)) if (/^\d+$/.test(id)) yield [Number(id), Number(n) || 1];
+    }
+  }
+
+  // Log rows (as stored) -&gt; events, oldest first, classified.
+  function load(rows) {
+    return rows.slice().sort((a, b) =&gt; a.ts - b.ts || (a.id &lt; b.id ? -1 : 1)).map(r =&gt; {
+      const e = { id: r.id, ts: r.ts, type: r.type, title: r.title, d: r.d || {} };
+      if (e.d.crime_action) {
+        Object.assign(e, classify(e.d.crime_action));
+        e.result = resultOf(r.title);
+        e.nerve = e.d.nerve || 0;
+        e.money = (e.d.money_gained || 0) - (e.d.money_lost || 0);
+        e.isStep = true;
+      } else e.crime = EVENT_CRIME[r.type] ?? null;
+      return e;
+    });
+  }
+
+  // Each arson job from inquire/breach to collect; items in the same second as a step are that step's job's.
+  function arsonJobs(events, price, now) {
+    const jobs = [], open = new Map(), stepAt = new Map();
+    for (const e of events) if (e.crime === ARSON &amp;&amp; e.isStep &amp;&amp; e.detail) (stepAt.get(e.ts) || stepAt.set(e.ts, []).get(e.ts)).push([e.detail, e.action]);
+    const close = (j, state, ts) =&gt; { j.state = state; j.closed = ts; open.delete(j.job); };
+    for (const e of events) {
+      if (e.crime !== ARSON) continue;
+      if (COST_TYPES.has(e.type)) {
+        const near = [0, -1, 1, -2, 2].flatMap(dt =&gt; stepAt.get(e.ts + dt) || []);
+        const step = near.find(s =&gt; ["Place combustible", "Plant evidence", "Stoke"].includes(s[1])) || near[0];
+        const j = step ? open.get(step[0]) : [...open.values()].sort((a, b) =&gt; b.last - a.last)[0];
+        if (j) {
+          const used = [...items(e.d, ["items_used"])];
+          j.itemCost += used.reduce((s, [i, n]) =&gt; s + (price[i] || 0) * n, 0);
+          const bucket = step &amp;&amp; step[1] === "Plant evidence" ? j.evidence : j.fuel;
+          for (const [i, n] of used) bucket[i] = (bucket[i] || 0) + n;
+        }
+        continue;
+      }
+      const job = e.detail || (e.type === 9360 ? e.d.target : null);
+      if (!job) continue;
+      const starts = e.type === 9360 || e.action === "Make entry";
+      let j = open.get(job);
+      if (j &amp;&amp; (e.ts - j.last &gt; ARSON_EXPIRE || (starts &amp;&amp; j.worked))) { close(j, "expired", j.last); j = null; }
+      if (!j) {
+        j = { job, opened: e.ts, last: e.ts, closed: null, state: "open", nerve: 0, steps: 0, money: 0, itemCost: 0, worked: false,
+              lit: false, stokes: 0, dampens: 0, fuel: {}, evidence: {} };
+        jobs.push(j); open.set(job, j);
+      }
+      j.last = e.ts;
+      if (e.isStep) {
+        j.nerve += e.nerve; j.steps += 1; j.money += e.money;
+        j.worked = j.worked || e.action !== "Make entry";
+        j.lit = j.lit || (e.action === "Ignite" &amp;&amp; e.result === "success");
+        j.stokes += e.action === "Stoke"; j.dampens += e.action === "Dampen";
+        if (e.action === "Collect" &amp;&amp; e.result === "success") close(j, "paid", e.ts);
+      }
+    }
+    for (const j of [...open.values()]) if (now - j.last &gt; ARSON_EXPIRE) close(j, "expired", j.last);
+    for (const j of jobs) if (j.state === "expired" &amp;&amp; !j.steps) j.state = "skipped";
+    return jobs;
+  }
+
+  // Each scam conversation from reading the email to the payout (responses go to the newest open one per method).
+  function scamConversations(events, now) {
+    const convs = [], stacks = new Map();
+    const stack = m =&gt; stacks.get(m) || stacks.set(m, []).get(m);
+    const close = (c, state, ts) =&gt; { c.state = state; c.closed = ts; const s = stack(c.method); s.splice(s.indexOf(c), 1); };
+    const sweep = (m, ts) =&gt; { for (const c of [...stack(m)]) {
+      if (c.state === "failing" &amp;&amp; ts - c.last &gt; SCAM_LOST_AFTER) close(c, "lost", c.last);
+      else if (ts - c.last &gt; SCAM_EXPIRE) close(c, "expired", c.last);
+    } };
+    const conv = (m, target, ts) =&gt; { const c = { method: m, target, opened: ts, last: ts, closed: null, state: "open", responses: 0, nerve: 0, money: 0 }; convs.push(c); stack(m).push(c); return c; };
+    for (const e of events) {
+      if (e.crime !== SCAMMING) continue;
+      if (e.type === 9356) {
+        const m = e.d.method || "?";
+        sweep(m, e.ts);
+        const st = stack(m);
+        if (st.length &amp;&amp; st[st.length - 1].state === "failing") close(st[st.length - 1], "lost", st[st.length - 1].last);
+        conv(m, e.d.target, e.ts);
+        continue;
+      }
+      if (e.action !== "Respond") continue;
+      const m = e.detail;
+      sweep(m, e.ts);
+      const st = stack(m);
+      while (st.length &amp;&amp; st[st.length - 1].state === "failing" &amp;&amp; e.result !== "success") close(st[st.length - 1], "lost", st[st.length - 1].last);
+      if (!st.length) conv(m, null, null);
+      const c = st[st.length - 1];
+      c.last = e.ts; c.responses += 1; c.nerve += e.nerve; c.money += e.money;
+      c.state = e.result === "fail" ? "failing" : "open";
+      if (e.money &gt; 0) close(c, "paid", e.ts); else if (e.result === "crit") close(c, "lost", e.ts);
+    }
+    for (const m of stacks.keys()) sweep(m, now);
+    for (const c of convs) if (c.state === "failing") c.state = "open";
+    return convs;
+  }
+
+  // ---- community recipes (the Arsonist's Ledger dataset, keyed by job title) ----
+  const REF_NAMES = { hydrogen: "Hydrogen Tank", methane: "Methane Tank", oxygen: "Oxygen Tank", magnesium: "Magnesium Shavings", potassium_nitrate: "Potassium Nitrate" };
+  const TOOLS = new Set(["flamethrower", "lighter", "blanket", "sand", "extinguisher"]);  // kept after use: no cost
+  const refName = id =&gt; REF_NAMES[id] || id.replace(/_/g, " ").replace(/\b\w/g, c =&gt; c.toUpperCase());
+  const jobTitle = job =&gt; (job.match(/^.* \((.*)\)$/) || [, job])[1];
+  function community(r, priceByName) {
+    if (!r) return null;
+    const a = r.actions || {}, step = k =&gt; (a[k] || []).map(x =&gt; [x.resourceId, x.qty || 1, !!x.optional]);
+    const [ev, place, ign, stoke, damp] = ["evidence", "place", "ignite", "stoke", "dampen"].map(step);
+    const fmt = xs =&gt; xs.map(([i, q]) =&gt; q &gt; 1 ? `${q} ${refName(i)}` : refName(i)).join(" + ");
+    const steps = [];
+    if (ev.length) steps.push(["Evidence", fmt(ev)]);
+    if (place.length) steps.push(["Place", fmt(place)]);
+    if (ign.length) steps.push(["Ignite", fmt(ign)]);
+    if (stoke.length) steps.push(["Stoke", fmt(stoke) + (a.stokeTime ? ` (${a.stokeTime})` : "") + (stoke.every(x =&gt; x[2]) ? " if needed" : "")]);
+    if (damp.length) steps.push(["Dampen", fmt(damp)]);
+    const needed = [...ev, ...place, ...stoke, ...damp].filter(x =&gt; !x[2]);
+    const nerve = 10 + 5 * needed.reduce((s, x) =&gt; s + x[1], 0);  // breach 3 + ignite 5 + collect 2, and 5 per other step
+    const cost = needed.filter(x =&gt; !TOOLS.has(x[0])).reduce((s, [i, q]) =&gt; s + (priceByName[refName(i)] || 0) * q, 0);
+    const lo = r.payoutMin || 0, hi = r.payoutMax || 0;
+    return { steps, min: lo, max: hi, nerve, cost: Math.round(cost), per_nerve: hi ? Math.round(((lo + hi) / 2 - cost) / nerve) : null };
+  }
+
+  function recipe(j, names) {
+    const nm = i =&gt; names[i] || `item ${i}`;
+    const fuel = Object.entries(j.fuel).sort((a, b) =&gt; b[1] - a[1]).map(([i, n]) =&gt; n &gt; 1 ? `${n}x ${nm(i)}` : nm(i)).join(" + ");
+    const ev = Object.keys(j.evidence).map(nm).join(" + ");
+    const text = [fuel, ev &amp;&amp; `${ev} evidence`].filter(Boolean).join(" + ") || "no fuel logged";
+    return text + (j.stokes ? `, ${j.stokes} stoke${j.stokes &gt; 1 ? "s" : ""}` : "") + (j.dampens ? `, ${j.dampens} dampen${j.dampens &gt; 1 ? "s" : ""}` : "");
+  }
+  function tendHint(t) {
+    if (!t || t.paid &lt; 2 || !t.stoked) return null;
+    if (t.stoked === t.paid) return `stoke: ${t.stoked}/${t.paid} payouts`;
+    if (t.stoked * 2 &gt;= t.paid) return `often stoked: ${t.stoked}/${t.paid}, check its requirement`;
+    return null;
+  }
+  function topRecipe(t) {
+    if (!t || !Object.keys(t.recipes).length) return null;
+    const [best, n] = Object.entries(t.recipes).sort((a, b) =&gt; b[1] - a[1])[0];
+    return `${best} (${n} of ${t.paid} payouts)` + (t.last &amp;&amp; t.last !== best ? `; last time: ${t.last}` : "");
+  }
+  const median = xs =&gt; { const s = xs.slice().sort((a, b) =&gt; a - b), m = s.length &gt;&gt; 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  // ---- disposal: which method for which job ----
+  // A job pays about the same whichever way it's disposed of, but each method costs fixed nerve and some fail more
+  // often. So the pick is the best expected $/nerve: chance it works x what the job pays, less materials, over the
+  // method's nerve. Cheap and shaky can beat reliable and dear: a dead body abandoned (6 nerve, ~80%) beats burned
+  // (10 nerve, ~90%), which is why veterans leave them.
+  // The community's chart (26 Feb 2024, 35,517 disposals) gives each method's reliability to start from; your own
+  // results take over as you build history. Columns: abandon, bury, burn, sink, dissolve. g = very likely to work,
+  // y = works with caution, o = works but fails often, r = fails almost every time, - = not available; * = a unique
+  // outcome can be found there.
+  const DISPOSAL_METHODS = ["Abandoning", "Burying", "Burning", "Sinking", "Dissolving"];
+  const DISPOSAL_NERVE = { Abandoning: 6, Burying: 8, Burning: 10, Sinking: 12, Dissolving: 14 };
+  const DISPOSAL_CHART = {
+    "biological waste": "o y o g -", "body part": "o y y y g*", "building debris": "y* o - g -", "dead body": "y* g o o g",
+    "document": "o y g* r r", "firearm": "o y* - g r", "general waste": "y* g g o r", "industrial waste": "o y* - g -",
+    "murder weapon": "o y - g* r", "old furniture": "y o* g y r", "broken appliance": "o o - g* r", "vehicle": "o* - g g -" };
+  const CHART_ODDS = { g: 0.95, y: 0.82, o: 0.65, r: 0.10 }, CHART_WEIGHT = 8;  // the chart counts as 8 attempts of your own
+  function disposalMethods(job, stats) {
+    const chart = (DISPOSAL_CHART[job.toLowerCase().replace(/s$/, "")] || DISPOSAL_CHART[job.toLowerCase()] || "? ? ? ? ?").split(" ");
+    const done = Object.values(stats).filter(t =&gt; t.success);
+    const paid = done.reduce((s, t) =&gt; s + t.success, 0);
+    const pay = paid ? done.reduce((s, t) =&gt; s + t.money + t.itemValue, 0) / paid : null;
+    const methods = DISPOSAL_METHODS.map((m, i) =&gt; {
+      const t = stats[m] || {}, n = t.attempts || 0, ok = t.success || 0, c = chart[i] || "?";
+      const rating = c.replace("*", ""), star = c.endsWith("*");
+      if (rating === "-" &amp;&amp; !n) return { method: m, rating, star: false, available: false };
+      const prior = CHART_ODDS[rating];
+      const p = prior != null ? (ok + CHART_WEIGHT * prior) / (n + CHART_WEIGHT) : n ? ok / n : null;
+      const nerve = n ? t.nerve / n : DISPOSAL_NERVE[m], cost = n ? t.itemCost / n : 0;
+      const ev = p != null &amp;&amp; pay != null ? (p * pay - cost) / nerve : null;
+      return { method: m, rating, star, available: true, tries: n, ok, crits: t.crit || 0, p: p != null ? Math.round(p * 1000) / 1000 : null,
+               nerve: Math.round(nerve * 10) / 10, ev: ev != null ? Math.round(ev) : null,
+               per_nerve: n &amp;&amp; t.nerve ? Math.round((t.money + t.itemValue - t.itemCost) / t.nerve) : null };
+    });
+    const live = methods.filter(m =&gt; m.available &amp;&amp; m.p != null);
+    const score = m =&gt; m.ev != null ? m.ev : m.p / m.nerve;  // same pay whichever way: odds per nerve
+    const best = live.reduce((a, m) =&gt; !a || score(m) &gt; score(a) ? m : a, null);
+    const steady = live.reduce((a, m) =&gt; !a || m.p &gt; a.p || (m.p === a.p &amp;&amp; m.nerve &lt; a.nerve) ? m : a, null);
+    return { methods, pay: pay ? Math.round(pay) : null, best: best &amp;&amp; best.method, steady: steady &amp;&amp; steady.method };
+  }
+
+  // The whole picture: $/nerve per crime and per kind (job, scam type, spot...), all costs in.
+  function report(rows, { price = {}, names = {}, ref = {}, priceByName = {}, days = null, now = Date.now() / 1000 } = {}) {
+    const since = days ? now - days * DAY : 0, events = load(rows);
+    const blank = () =&gt; ({ attempts: 0, nerve: 0, success: 0, fail: 0, crit: 0, money: 0, itemValue: 0, itemCost: 0 });
+    const crimes = {}, actions = new Map(), kinds = new Map();
+    const add = (t, e) =&gt; { t.attempts++; t.nerve += e.nerve; t[e.result]++; t.money += e.money;
+      for (const [i, n] of items(e.d, ["items_gained"])) t.itemValue += (price[i] || 0) * n; };
+    const get = (m, k) =&gt; m.get(k) || m.set(k, blank()).get(k);
+    // Materials are logged in the same second as the step they were for: charged to what that step was done to (and,
+    // for disposal, to how: burning's gasoline, dissolving's acid).
+    const stepAt = new Map(), how = new Map();
+    for (const e of events) if (e.isStep &amp;&amp; KIND_CRIMES.has(e.crime)) stepAt.set(`${e.ts}|${e.crime}`, [e.detail || e.action, e.action]);
+    for (const e of events) {
+      if (e.ts &lt; since) continue;
+      const cid = e.crime;
+      if (e.isStep) {
+        const c = cid ?? 0;
+        add(crimes[c] ||= blank(), e);
+        add(get(actions, `${c}|${e.action}|${c === SCAMMING ? e.detail : ""}`), e);
+        if (KIND_CRIMES.has(c)) add(get(kinds, `${c}|${e.detail || e.action}`), e);
+        if (c === DISPOSAL) add(get(how, `${e.detail || e.action}|${e.action}`), e);
+      } else if (COST_TYPES.has(e.type) &amp;&amp; cid) {
+        const cost = [...items(e.d, ["items_used", "items_added"])].reduce((s, [i, n]) =&gt; s + (price[i] || 0) * n, 0);
+        (crimes[cid] ||= blank()).itemCost += cost;
+        const at = [0, -1, 1, -2, 2].map(dt =&gt; stepAt.get(`${e.ts + dt}|${cid}`)).find(Boolean);
+        if (at &amp;&amp; KIND_CRIMES.has(cid)) {
+          get(kinds, `${cid}|${at[0]}`).itemCost += cost;
+          if (cid === DISPOSAL) get(how, `${at[0]}|${at[1]}`).itemCost += cost;
+        }
+      }
+    }
+    const finish = t =&gt; { t.net = t.money + t.itemValue - t.itemCost; t.per_nerve = t.nerve ? t.net / t.nerve : null; return t; };
+    const byCrime = {};
+    for (const [c, t] of Object.entries(crimes)) byCrime[c] = { id: +c, name: NAMES[c] || "Unrecognised", ...finish(t) };
+
+    // arson jobs in range, and how each has been tended and fuelled when it paid (all time)
+    const allJobs = arsonJobs(events, price, now), arson = new Map(), tend = new Map();
+    for (const j of allJobs.filter(j =&gt; (j.closed || j.last) &gt;= since)) {
+      const a = arson.get(j.job) || arson.set(j.job, { job: j.job, instances: 0, paid: 0, expired: 0, open: 0, skipped: 0, nerve: 0, money: 0, itemCost: 0 }).get(j.job);
+      a[j.state]++; a.instances += j.state !== "skipped"; a.nerve += j.nerve; a.money += j.money; a.itemCost += j.itemCost;
+    }
+    for (const j of allJobs) if (j.state === "paid" &amp;&amp; j.lit) {
+      const t = tend.get(j.job) || tend.set(j.job, { paid: 0, stoked: 0, recipes: {}, last: null, payouts: [] }).get(j.job);
+      t.paid++; t.stoked += j.stokes &gt; 0; t.payouts.push(j.money);
+      const r = recipe(j, names); t.recipes[r] = (t.recipes[r] || 0) + 1; t.last = r;
+    }
+    // scam conversations in range, per method, with spam waves and a share of email farming
+    const methods = new Map();
+    const method = m =&gt; methods.get(m) || methods.set(m, { method: m, conversations: 0, paid: 0, lost: 0, expired: 0, open: 0, responses: 0, nerve: 0, money: 0, waves: 0, waveNerve: 0 }).get(m);
+    for (const c of scamConversations(events, now).filter(c =&gt; (c.closed || c.last) &gt;= since)) {
+      const m = method(c.method); m.conversations++; m[c.state]++; m.responses += c.responses; m.nerve += c.nerve; m.money += c.money;
+    }
+    for (const [k, v] of actions) { const [c, a, d] = k.split("|"); if (+c === SCAMMING &amp;&amp; a === "Spam wave") { const m = method(d); m.waves += v.attempts; m.waveNerve += v.nerve; } }
+    const farm = actions.get(`${SCAMMING}|Farm emails|`), waves = [...methods.values()].reduce((s, m) =&gt; s + m.waves, 0);
+    for (const m of methods.values()) {
+      const share = farm &amp;&amp; waves ? m.waves / waves : 0;
+      m.allNerve = m.nerve + m.waveNerve + Math.round((farm ? farm.nerve : 0) * share);
+      m.net = m.money + (farm ? farm.money : 0) * share;  // farming's money is negative (paid out)
+      const closed = m.paid + m.lost + m.expired;
+      m.winRate = closed ? m.paid / closed : null;
+    }
+
+    // $/nerve by kind
+    const base = Object.fromEntries(Object.values(byCrime).map(c =&gt; [c.id, c.per_nerve]));
+    const out = [];
+    for (const a of arson.values()) if (a.instances) {
+      const t = tend.get(a.job), r = ref[jobTitle(a.job)];
+      const recent = t ? t.payouts.slice(-6).filter(p =&gt; p &gt; 0) : [];
+      out.push({ crime_id: ARSON, kind: a.job, nerve: a.nerve, net: a.money - a.itemCost, count: a.instances, unit: "jobs",
+                 tend: tendHint(t), recipe: topRecipe(t), community: community(r, priceByName),
+                 your_share: r &amp;&amp; r.payoutMax &amp;&amp; recent.length ? Math.round(100 * median(recent) / r.payoutMax) / 100 : null });
+    }
+    for (const m of methods.values()) if (m.conversations)
+      out.push({ crime_id: SCAMMING, kind: m.method, nerve: m.allNerve, net: m.net, count: m.conversations, unit: "targets",
+                 win_rate: m.winRate, paid: m.paid });
+    for (const [k, v] of kinds) { const [c, kind] = [+k.split("|")[0], k.slice(k.indexOf("|") + 1)];
+      const row = { crime_id: c, kind, nerve: v.nerve, net: v.money + v.itemValue - v.itemCost, count: v.attempts, unit: "crimes" };
+      if (c === DISPOSAL) {  // which method to use for this job: the choice the page asks you to make
+        const stats = Object.fromEntries([...how].filter(([hk]) =&gt; hk.slice(0, hk.lastIndexOf("|")) === kind).map(([hk, t]) =&gt; [hk.slice(hk.lastIndexOf("|") + 1), t]));
+        Object.assign(row, disposalMethods(kind, stats));
+      }
+      out.push(row); }
+    for (const k of out) {
+      k.crime = NAMES[k.crime_id] || "Unrecognised";
+      k.per_nerve = k.nerve ? k.net / k.nerve : null;
+      k.avg_net = k.count ? k.net / k.count : null;
+      k.vs_crime = k.per_nerve != null &amp;&amp; base[k.crime_id] ? k.per_nerve / base[k.crime_id] : null;
+      k.few = k.nerve &lt; MIN_NERVE || k.count &lt; 2;
+    }
+    const total = finish(Object.values(crimes).reduce((t, c) =&gt; { for (const f of ["attempts", "nerve", "success", "fail", "crit", "money", "itemValue", "itemCost"]) t[f] += c[f]; return t; }, blank()));
+    return { total, crimes: Object.values(byCrime).sort((a, b) =&gt; b.nerve - a.nerve), kinds: out, events: events.length };
+  }
+
+  // What the page badges: for each crime tab, the names to look for and your $/nerve for each.
+  const slug = s =&gt; s.toLowerCase().replace(/[^a-z]/g, "");
+  function pageValues(rep, ref = {}, priceByName = {}) {
+    const overall = rep.total.per_nerve || 0, tabs = {};
+    for (const k of rep.kinds) {
+      if (!k.crime_id || k.per_nerve == null) continue;
+      const find = k.crime_id === ARSON ? [jobTitle(k.kind)] : k.crime_id === SCAMMING ? [k.kind, k.kind.replace(/\s*scam$/i, "")]
+        : k.crime_id === 1 ? [`Search the ${k.kind}`, `Search ${k.kind}`] : [k.kind, k.kind.replace(/^(a|an|the) /i, "")];
+      (tabs[slug(NAMES[k.crime_id])] ||= []).push({ ...k, find: [...new Set(find.filter(f =&gt; f.length &gt;= 3))],
+        worth: !k.few &amp;&amp; (k.vs_crime || 0) &gt;= 1 &amp;&amp; k.per_nerve &gt;= overall });
+    }
+    // arson jobs you've never done: the community recipe is all there is to go on
+    const done = new Set((tabs.arson || []).map(v =&gt; jobTitle(v.kind)));
+    const arsonBase = (rep.crimes.find(c =&gt; c.id === ARSON) || {}).per_nerve;
+    for (const [title, r] of Object.entries(ref)) {
+      if (done.has(title)) continue;
+      const c = community(r, priceByName);
+      if (!c || c.per_nerve == null) continue;
+      const vs = arsonBase ? c.per_nerve / arsonBase : null;
+      (tabs.arson ||= []).push({ crime_id: ARSON, kind: title, find: [title], per_nerve: c.per_nerve, vs_crime: vs, few: false, count: 0,
+        unit: "jobs", source: "community", community: c, worth: (vs || 0) &gt;= 1 &amp;&amp; (!overall || c.per_nerve &gt;= overall) });
+    }
+    return { overall, tabs };
+  }
+
+  return { classify, load, arsonJobs, scamConversations, community, report, pageValues, jobTitle, slug, NAMES, disposalMethods };
+})();
+
+if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
+else (function main() {
+  "use strict";
+  const url = new URL(location.href);
+  const onCrimes = url.searchParams.get("sid") === "crimes";
+  const body = document.body;
+  if (!body) return;
+  const KEY_LINK = "https://www.torn.com/preferences.php#tab=api?step=addNewKey&amp;title=Crime%20Advisor&amp;user=log";
+  const $ = (tag, cls, text) =&gt; { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const short = n =&gt; n == null ? "\u2013" : (n &lt; 0 ? "-" : "") + (Math.abs(n) &gt;= 1e6 ? `$${(Math.abs(n) / 1e6).toFixed(1).replace(/\.0$/, "")}m`
+    : Math.abs(n) &gt;= 1e3 ? `$${(Math.abs(n) / 1e3).toFixed(1).replace(/\.0$/, "")}k` : `$${Math.round(Math.abs(n))}`);
+  const sleep = ms =&gt; new Promise(r =&gt; setTimeout(r, ms));
+
+  // ---------------- storage: settings in Tampermonkey, logs in IndexedDB ----------------
+  const get = (k, d) =&gt; { try { const v = GM_getValue(k); return v === undefined ? d : v; } catch (e) { return d; } };
+  const set = (k, v) =&gt; { try { GM_setValue(k, v); } catch (e) { /* ignore */ } };
+  // Some browsers block IndexedDB (e.g. private windows): then the logs are kept in memory for this visit only.
+  let memoryOnly = false;
+  const idb = (() =&gt; {
+    let p = null;
+    const mem = new Map();
+    const open = () =&gt; p || (p = new Promise(res =&gt; {
+      const fail = () =&gt; { memoryOnly = true; res(null); };
+      const timer = setTimeout(fail, 5000);
+      try {
+        const r = indexedDB.open("crime-advisor", 1);
+        r.onupgradeneeded = () =&gt; r.result.createObjectStore("logs", { keyPath: "id" });
+        r.onsuccess = () =&gt; { clearTimeout(timer); res(r.result); };
+        r.onerror = () =&gt; { clearTimeout(timer); fail(); };
+      } catch (e) { clearTimeout(timer); fail(); }
+    }));
+    const tx = async (mode, fn, memFn) =&gt; { const db = await open(); if (!db) return memFn(); return new Promise((res, rej) =&gt; {
+      const t = db.transaction("logs", mode), s = t.objectStore("logs"), out = fn(s);
+      t.oncomplete = () =&gt; res(out &amp;&amp; "result" in out ? out.result : out); t.onerror = () =&gt; rej(t.error); }); };
+    return { put: rows =&gt; tx("readwrite", s =&gt; { rows.forEach(r =&gt; s.put(r)); }, () =&gt; rows.forEach(r =&gt; mem.set(r.id, r))),
+             all: () =&gt; tx("readonly", s =&gt; s.getAll(), () =&gt; [...mem.values()]),
+             count: () =&gt; tx("readonly", s =&gt; s.count(), () =&gt; mem.size),
+             clear: () =&gt; tx("readwrite", s =&gt; s.clear(), () =&gt; mem.clear()) };
+  })();
+
+  // ---------------- the Torn API (your key, one request every 3 s at most) ----------------
+  const GAP_MS = 3000;
+  let lastReq = 0;
+  function http(opts) {
+    return new Promise((res, rej) =&gt; GM_xmlhttpRequest({ ...opts, timeout: 30000, onload: res, onerror: () =&gt; rej(new Error("network error")),
+                                                         ontimeout: () =&gt; rej(new Error("timed out")) }));
+  }
+  async function api(path, params = {}) {
+    const key = get("key", "");
+    if (!key) throw new Error("no API key");
+    const wait = lastReq + GAP_MS - Date.now();
+    if (wait &gt; 0) await sleep(wait);
+    lastReq = Date.now();
+    const q = new URLSearchParams(Object.fromEntries(Object.entries({ ...params, comment: "CrimeAdvisor" }).filter(([, v]) =&gt; v != null)));
+    const r = await http({ method: "GET", url: `https://api.torn.com/v2${path}?${q}`, headers: { Authorization: `ApiKey ${key}` } });
+    const j = JSON.parse(r.responseText);
+    if (j.error) {
+      const msg = { 2: "the API key isn't right", 16: "the key can't read logs: use the panel's \"Make a log-only key\" link", 5: "too many requests: waiting",
+                    8: "IP blocked by Torn for too many requests", 13: "the key's owner is inactive", 18: "the key is paused" }[j.error.code] || j.error.error;
+      const e = new Error(msg); e.code = j.error.code; throw e;
+    }
+    return j;
+  }
+
+  // ---------------- syncing your crime logs (new ones first, then history, gently) ----------------
+  const keep = ["crime_action", "nerve", "money_gained", "money_lost", "items_used", "items_added", "items_gained", "target", "method", "crime", "skill_level"];
+  const slim = l =&gt; ({ id: String(l.id), ts: l.timestamp, type: (l.details || {}).id, title: (l.details || {}).title,
+                       d: Object.fromEntries(keep.filter(k =&gt; l.data &amp;&amp; l.data[k] != null).map(k =&gt; [k, l.data[k]])) });
+  let syncing = false, syncNote = "", syncError = "", syncedThisVisit = false;
+  async function page(to, from) {
+    const j = await api("/user/log", { cat: 136, limit: 100, to, from });
+    const logs = j.log || [];
+    if (logs.length) await idb.put(logs.map(slim));
+    return logs;
+  }
+  async function sync(onProgress) {
+    if (syncing || !get("key", "")) return;
+    // one tab at a time: a lock that another tab's sync refreshes
+    const lock = get("lock", 0);
+    if (Date.now() - lock &lt; 20000) return;
+    syncing = true;
+    const beat = setInterval(() =&gt; set("lock", Date.now()), 5000);
+    set("lock", Date.now());
+    const st = memoryOnly &amp;&amp; !syncedThisVisit ? { newest: null, oldest: null, done: false } : get("sync", { newest: null, oldest: null, done: false });
+    syncedThisVisit = true;
+    try {
+      syncError = "";
+      // new logs: page back from now to the newest we have (a first run takes one page; history does the rest)
+      const fresh = st.newest == null;
+      let to = null;
+      for (let i = 0; i &lt; 30; i++) {
+        const logs = await page(to, st.newest ? st.newest - 1 : null);
+        if (!logs.length) { if (st.newest == null) st.done = true; break; }
+        const ts = logs.map(l =&gt; l.timestamp);
+        st.newest = Math.max(st.newest || 0, ...ts);
+        if (st.oldest == null) st.oldest = Math.min(...ts);
+        if (fresh || logs.length &lt; 100) break;
+        to = Math.min(...ts) - 1;
+      }
+      set("sync", st);
+      onProgress();
+      // history: keep paging back while this page is open, until the start
+      let pages = 0, batches = 0;
+      while (!st.done &amp;&amp; !(memoryOnly &amp;&amp; pages++ &gt;= 20)) {  // memory-only: just the latest ~2,000 logs each visit
+        syncNote = `loading history (back to ${new Date(st.oldest * 1000).toLocaleDateString()})`;
+        onProgress();
+        const logs = await page(st.oldest, null);
+        if (logs.length) st.oldest = Math.min(st.oldest, ...logs.map(l =&gt; l.timestamp)) - (logs.length === 100 ? 0 : 1);
+        if (logs.length &lt; 100) st.done = true;
+        else if (logs.every(l =&gt; l.timestamp === st.oldest)) st.oldest -= 1;  // a full page within one second: step past it
+        set("sync", st);
+        if (++batches % 20 === 0) await recompute();  // every ~2,000 logs: the numbers catch up as history loads
+      }
+      syncNote = "";
+      set("synced_at", Date.now());
+    } catch (e) {
+      syncError = e.message;
+      if (e.code === 5) await sleep(60000);
+    } finally {
+      clearInterval(beat);
+      set("lock", 0);
+      syncing = false;
+      onProgress();
+    }
+  }
+
+  // ---------------- item prices (materials and rewards) and the community recipes, once a day ----------------
+  async function refreshPrices(rows) {
+    const cached = get("prices", { at: 0, byId: {} });
+    if (Date.now() - cached.at &lt; DAYMS) return cached;
+    const ids = new Set();
+    for (const r of rows) for (const k of ["items_used", "items_added", "items_gained"]) for (const id of Object.keys((r.d || {})[k] || {})) if (/^\d+$/.test(id)) ids.add(id);
+    const fuels = ["Gasoline", "Kerosene", "Diesel", "Hydrogen Tank", "Methane Tank", "Oxygen Tank", "Magnesium Shavings", "Potassium Nitrate", "Thermite"];
+    const byId = {};
+    const list = [...ids];
+    try {
+      for (let i = 0; i &lt; list.length; i += 100) {
+        const j = await api(`/torn/${list.slice(i, i + 100).join(",")}/items`);
+        for (const it of j.items || []) byId[it.id] = [it.name, (it.value || {}).market_price || 0];
+      }
+      // fuels not in your logs yet (to cost community recipes): arson fuels are "Material" items
+      if (fuels.some(f =&gt; !Object.values(byId).some(([n]) =&gt; n === f))) {
+        const all = await api("/torn/items", { cat: "Material" }).catch(() =&gt; ({ items: [] }));
+        for (const it of all.items || []) if (fuels.includes(it.name)) byId[it.id] = [it.name, (it.value || {}).market_price || 0];
+      }
+      const out = { at: Date.now(), byId };
+      set("prices", out);
+      return out;
+    } catch (e) { return cached; }
+  }
+  const DAYMS = 86400000;
+  async function refreshRef() {
+    const cached = get("ref", { at: 0, byTitle: {} });
+    if (Date.now() - cached.at &lt; DAYMS &amp;&amp; Object.keys(cached.byTitle).length) return cached;
+    try {
+      const r = await http({ method: "GET", url: "https://balaclava.app/arsonists-ledger/scenarios.json" });
+      const rows = JSON.parse(r.responseText);
+      const out = { at: Date.now(), byTitle: Object.fromEntries(rows.filter(x =&gt; x.scenarioName).map(x =&gt; [x.scenarioName, x])) };
+      set("ref", out);
+      return out;
+    } catch (e) { return cached; }
+  }
+
+  // ---------------- the numbers ----------------
+  let values = null, summary = null, version = 0;
+  async function recompute() {
+    const rows = get("key", "") ? await idb.all().catch(() =&gt; []) : [];
+    const [prices, ref] = await Promise.all([rows.length ? refreshPrices(rows) : get("prices", { at: 0, byId: {} }), refreshRef()]);
+    const price = {}, names = {}, priceByName = {};
+    for (const [id, [n, p]] of Object.entries(prices.byId || {})) { price[id] = p; names[id] = n; priceByName[n] = p; }
+    const opts = { price, names, ref: ref.byTitle || {}, priceByName };
+    const all = CA.report(rows, opts);
+    values = CA.pageValues(all, opts.ref, priceByName);
+    version++;  // buttons drawn from older numbers are redrawn
+    summary = { all, month: CA.report(rows, { ...opts, days: 30 }), logs: rows.length };
+    renderPanel();
+  }
+
+  // ---------------- the panel: key, sync status, your $/nerve by crime ----------------
+  const style = $("style");
+  style.textContent = `
+    .ca-btn{position:fixed;left:12px;bottom:12px;z-index:99998;background:#1a1a19;color:#9cc8ff;border:1px solid #3a3a37;border-radius:18px;
+      padding:6px 12px;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+    .ca-panel{position:fixed;left:12px;bottom:52px;z-index:99999;width:min(360px,92vw);max-height:70vh;overflow:auto;background:#1a1a19;color:#f3f3f1;
+      border:1px solid #3a3a37;border-radius:10px;padding:12px 14px;font:13px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+    .ca-panel h4{margin:0 0 8px;color:#9cc8ff;font-size:13px;display:flex;justify-content:space-between}
+    .ca-panel input{width:100%;box-sizing:border-box;background:#111;color:#f3f3f1;border:1px solid #3a3a37;border-radius:6px;padding:6px 8px;font:13px monospace}
+    .ca-panel button{background:#2a78d6;color:#fff;border:0;border-radius:6px;padding:6px 10px;font:600 12px system-ui;cursor:pointer;margin:6px 6px 0 0}
+    .ca-panel button.ca-ghost{background:#2c2c2a;color:#e8e8e4}
+    .ca-panel table{width:100%;border-collapse:collapse;margin-top:6px;font-variant-numeric:tabular-nums}
+    .ca-panel td,.ca-panel th{padding:3px 4px;text-align:right;border-bottom:1px solid #2c2c2a}.ca-panel td:first-child,.ca-panel th:first-child{text-align:left}
+    .ca-panel th{color:#8f8e86;font-weight:500}.ca-muted{color:#8f8e86;font-size:12px}.ca-err{color:#ff9b8f}
+    .ca-chip{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;border:0;cursor:pointer;font:600 11px/1.6 system-ui,sans-serif;
+      background:#2c2c2a;color:#b5b4ad;vertical-align:middle}
+    .ca-chip.good{background:#1d5e3a;color:#d9ffe9}.ca-chip.mid{background:#5a4712;color:#ffe9a8}.ca-chip.bad{background:#6b2020;color:#ffd6d6}
+    .ca-chip:hover{filter:brightness(1.2)}
+    .ca-pop{position:fixed;z-index:100000;width:min(340px,92vw);background:#1a1a19;color:#f3f3f1;border:1px solid #3a3a37;border-radius:10px;
+      padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.55);font:13px/1.45 system-ui,sans-serif}
+    .ca-pop h5{margin:0 0 6px;font-size:13px;color:#9cc8ff;display:flex;justify-content:space-between;gap:8px}
+    .ca-pop .ca-x,.ca-panel .ca-x{background:none;border:0;color:#c3c2b7;cursor:pointer;font-size:14px;padding:0 4px;margin:0}
+    .ca-verdict{padding:6px 10px;border-radius:6px;background:#232321;margin-bottom:8px}
+    .ca-pop dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:4px 0 8px}.ca-pop dt{color:#8f8e86}.ca-pop dd{margin:0}
+    .ca-sec{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#8f8e86;margin:6px 0 2px}.ca-sec span{text-transform:none;letter-spacing:0}
+    .ca-meth{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:4px}
+    .ca-meth th{color:#8f8e86!important;font:500 11px system-ui,sans-serif!important;text-align:right;padding:2px 4px}.ca-meth th:first-child{text-align:left}
+    .ca-meth td{color:#f3f3f1!important;font-size:12px!important;text-align:right;padding:3px 4px;white-space:nowrap;background:none!important}
+    .ca-meth td:first-child{text-align:left}.ca-meth tr.ca-best td{background:rgba(63,185,80,.08)!important}
+    .ca-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+    .ca-mdot{position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px #1a1a19;pointer-events:none;z-index:2}
+    .ca-tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;font:600 10px/1.6 system-ui,sans-serif;background:#2c2c2a;color:#e8e8e4}
+    .ca-tag.good{background:#1d5e3a;color:#d9ffe9}
+    .ca-req{display:inline-block;background:#3a2f12;color:#ffe9a8;border-radius:999px;padding:1px 8px;margin:0 4px 4px 0;font-size:11px}
+    /* Torn's own stylesheet (dark mode tables, headings) wins otherwise: pin what matters */
+    .ca-panel td,.ca-pop dd,.ca-verdict{color:#f3f3f1!important;background:none!important;font-size:13px!important}
+    .ca-verdict{background:#232321!important}
+    .ca-panel th,.ca-pop dt,.ca-panel .ca-muted,.ca-pop .ca-sec,.ca-panel .ca-sec{color:#8f8e86!important}
+    .ca-panel .ca-err{color:#ff9b8f!important}
+    .ca-panel h4,.ca-pop h5{font:600 13px/1.4 system-ui,sans-serif!important;color:#9cc8ff!important;text-transform:none!important;letter-spacing:0!important}
+    .ca-panel input{color:#f3f3f1!important;background:#111!important}
+    .ca-chip{color:#b5b4ad!important;background:#2c2c2a!important}
+    .ca-chip.good{background:#1d5e3a!important;color:#d9ffe9!important}.ca-chip.mid{background:#5a4712!important;color:#ffe9a8!important}
+    .ca-chip.bad{background:#6b2020!important;color:#ffd6d6!important}`;
+  document.head.appendChild(style);
+
+  let panel = null;
+  const btn = $("button", "ca-btn", "Crime Advisor");
+  btn.type = "button";
+  if (onCrimes) body.appendChild(btn);
+  btn.onclick = () =&gt; { if (panel) { panel.remove(); panel = null; } else { panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
+  setInterval(async () =&gt; {  // while the panel is open: another tab's progress shows up here too
+    if (!panel) return;
+    const typing = panel.querySelector("input");
+    if (typing &amp;&amp; (typing.value || document.activeElement === typing)) return;
+    if (!syncing &amp;&amp; get("sync", {}).oldest !== (lastOldest ?? get("sync", {}).oldest)) await recompute();
+    lastOldest = get("sync", {}).oldest;
+    renderPanel();
+  }, 5000);
+  let lastOldest = null;
+
+  function renderPanel() {
+    if (!panel) return;
+    panel.replaceChildren();
+    const h = $("h4"); const x = $("button", "ca-x", "\u2715"); x.onclick = () =&gt; { panel.remove(); panel = null; };
+    h.append($("span", "", "Crime Advisor"), x);
+    panel.append(h);
+    const key = get("key", "");
+    if (!key) {
+      panel.append($("div", "", "Add your Torn API key to see your own $/nerve. Arson recipes and requirements work without it."),
+        $("div", "ca-muted", "It stays in this browser and is only sent to api.torn.com."));
+    }
+    const mk = $("a", "", "Make a log-only key on Torn \u2197");  // Torn's form has no Custom option: this link pre-fills one
+    mk.href = KEY_LINK; mk.target = "_blank"; mk.rel = "noopener"; mk.style.cssText = "display:inline-block;margin:6px 0;color:#9cc8ff";
+    panel.append(mk);
+    const inp = $("input"); inp.type = "password"; inp.placeholder = key ? "\u2022\u2022\u2022\u2022 key saved (paste to replace)" : "API key"; inp.autocomplete = "off";
+    const save = $("button", "", key ? "Replace key" : "Save key");
+    save.onclick = async () =&gt; {
+      const v = inp.value.trim();
+      if (!/^[A-Za-z0-9]{16}$/.test(v)) { alert("A Torn API key is 16 letters and numbers."); return; }
+      set("key", v); inp.value = "";
+      try { await api("/user/log", { cat: 136, limit: 1 }); } catch (e) { set("key", ""); alert(`That key doesn't work: ${e.message}`); renderPanel(); return; }
+      renderPanel(); start();
+    };
+    panel.append(inp, save);
+    if (key) {
+      const forget = $("button", "ca-ghost", "Remove key and data");
+      forget.onclick = async () =&gt; { if (!confirm("Remove your key and the crime logs stored in this browser?")) return;
+        set("key", ""); set("sync", { newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
+      panel.append(forget);
+      const st = get("sync", {});
+      const status = syncError ? $("div", "ca-err", `Sync problem: ${syncError}`)
+        : $("div", "ca-muted", (summary ? `${summary.logs.toLocaleString()} crime logs stored` : "") + (st.oldest ? `, back to ${new Date(st.oldest * 1000).toLocaleDateString()}` : "")
+          + (syncing ? ` \u00b7 ${syncNote || "checking for new logs"}\u2026`
+             : Date.now() - get("lock", 0) &lt; 20000 ? " \u00b7 loading in another Torn tab\u2026"
+             : st.done ? " \u00b7 up to date" : " \u00b7 more history loads while Torn is open"));
+      status.style.marginTop = "8px";
+      panel.append(status);
+      if (memoryOnly) panel.append($("div", "ca-muted", "This browser blocks site storage here (a private window?): your logs are re-read each visit."));
+    }
+    if (summary &amp;&amp; summary.logs) {
+      panel.append($("div", "ca-sec", "Your $/nerve by crime"));
+      const t = $("table");
+      const hr = $("tr"); ["Crime", "All time", "30 days", "Nerve (30d)"].forEach(c =&gt; hr.append($("th", "", c))); t.append(hr);
+      const m = Object.fromEntries(summary.month.crimes.map(c =&gt; [c.id, c]));
+      for (const c of summary.all.crimes.filter(c =&gt; c.id)) {
+        const r = $("tr"); const mm = m[c.id] || {};
+        [c.name, short(c.per_nerve), mm.nerve ? short(mm.per_nerve) : "\u2013", mm.nerve ? mm.nerve.toLocaleString() : "\u2013"].forEach(v =&gt; r.append($("td", "", v)));
+        t.append(r);
+      }
+      panel.append(t, $("div", "ca-muted", `All crimes: ${short(summary.all.total.per_nerve)}/nerve all time. Materials and item rewards at today's market prices; scamming includes spam waves and email farming.`));
+    }
+  }
+
+  // ---------------- the crime pages: a button per job, spot or scam type; a card with the details ----------------
+  let tab = null, pop = null;
+  const currentTab = () =&gt; (location.hash.match(/^#\/([a-z-]+)/i) || [])[1] || null;
+  function requirements(el, byName) {  // icons whose labels end in "required"/"requested", from the job's own row
+    let row = el;
+    for (let up = el.parentElement, i = 0; up &amp;&amp; i &lt; 8; up = up.parentElement, i++) {
+      const t = (up.textContent || "").toLowerCase();
+      let n = 0; const most = new Map();  // occurrences per entry (disposal repeats a job row by row; a scam matches two ways)
+      byName.forEach((v, k) =&gt; { most.set(v, Math.max(most.get(v) || 0, t.split(k).length - 1)); });
+      most.forEach(c =&gt; { n += c; });
+      if (n &gt; 1) break;
+      row = up;
+    }
+    const labels = [...row.querySelectorAll("[aria-label], [title]")].map(x =&gt; (x.getAttribute("aria-label") || x.getAttribute("title") || "").trim());
+    return { row, needs: [...new Set(labels.filter(l =&gt; /\b(required|requested)$/i.test(l)).map(l =&gt; l.replace(/\s*(required|requested)$/i, "")))] };
+  }
+  function closePop() { if (pop) pop.remove(); pop = null; }
+  function openPop(anchor, v, needs, fellShort) {
+    const again = pop &amp;&amp; pop.dataset.kind === v.kind;
+    closePop();
+    if (again) return;
+    pop = $("div", "ca-pop"); pop.dataset.kind = v.kind;
+    const x = $("button", "ca-x", "\u2715"); x.onclick = closePop;
+    const h = $("h5"); h.append($("span", "", v.kind), x); pop.append(h);
+    pop.append($("div", "ca-verdict", fellShort != null ? `Fell short: ${fellShort}% of the 100% it needs. No payout.`
+      : v.source === "community" ? "New to you: the community's numbers below."
+      : v.few ? "Little history yet." : v.per_nerve &lt; 0 ? "Has lost you money: materials cost more than it paid."
+      : v.worth ? "Worth it: above your usual for this crime and your average across crimes."
+      : v.vs_crime &gt;= 1 ? "Above your usual for this crime, below your average across crimes." : "Below your usual for this crime."));
+    const dl = rows =&gt; { const d = $("dl"); rows.filter(r =&gt; r &amp;&amp; r[1]).forEach(([k, val]) =&gt; d.append($("dt", "", k), $("dd", "", val))); return d; };
+    if (v.source !== "community") pop.append(dl([
+      ["Your $/nerve", `${short(v.per_nerve)}` + (v.vs_crime != null ? ` \u00b7 ${v.vs_crime.toFixed(1)}\u00d7 your usual` : "")],
+      ["Your history", `${v.count} ${v.unit}` + (v.avg_net ? ` \u00b7 about ${short(v.avg_net)} each` : "") +
+        (v.your_share != null ? ` \u00b7 ${Math.round(v.your_share * 100)}% of its top pay` : "") + (v.win_rate != null ? ` \u00b7 ${Math.round(v.win_rate * 100)}% paid` : "")]]));
+    if (v.methods &amp;&amp; v.methods.length) pop.append(methodTable(v));
+    if (needs.length) { pop.append($("div", "ca-sec", "Needs")); const d = $("div"); needs.forEach(n =&gt; d.append($("span", "ca-req", n))); pop.append(d); }
+    const c = v.community;
+    if (c) {
+      const sec = $("div", "ca-sec", "Community recipe ");
+      sec.append($("span", "", `\u00b7 pays ${short(c.min)}\u2013${short(c.max)}` + (c.per_nerve != null ? ` \u00b7 ~${short(c.per_nerve)}/nerve` : "")));
+      pop.append(sec, dl(c.steps));
+    }
+    if (v.recipe || v.tend) { pop.append($("div", "ca-sec", "Your record")); pop.append(dl([["Winning recipe", v.recipe], ["Tending", v.tend]])); }
+    body.appendChild(pop);
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, ht = pop.offsetHeight;
+    Object.assign(pop.style, { left: `${Math.min(Math.max(8, r.left), innerWidth - w - 8)}px`,
+                               top: `${r.bottom + 6 + ht &lt; innerHeight ? r.bottom + 6 : Math.max(8, r.top - ht - 6)}px` });
+  }
+  document.addEventListener("click", e =&gt; { if (pop &amp;&amp; !pop.contains(e.target)) closePop(); });
+  document.addEventListener("keydown", e =&gt; { if (e.key === "Escape") closePop(); });
+  addEventListener("scroll", closePop, { passive: true });
+
+  // Disposal: the method with the best expected $/nerve for a job, short on its button ("$19k/nerve \u00b7 abandon").
+  const HOW = { Abandoning: "abandon", Burying: "bury", Burning: "burn", Sinking: "sink", Dissolving: "dissolve" };
+  // How reliable a method is (the community chart blended with your own record): the chart's colours.
+  const RELY = p =&gt; p == null ? ["#6e7681", "not enough data"] : p &gt;= 0.9 ? ["#3fb950", "very likely to work"]
+    : p &gt;= 0.78 ? ["#e3d341", "works, with caution"] : p &gt;= 0.5 ? ["#e8913a", "works but fails often"] : ["#e5484d", "fails almost every time"];
+  function methodTable(v) {
+    const box = $("div");
+    box.append($("div", "ca-sec", "Which method"));
+    const t = $("table", "ca-meth"), hr = $("tr");
+    ["", "Works", "Nerve", "Expected", "Crits"].forEach(h =&gt; hr.append($("th", "", h)));
+    t.append(hr);
+    for (const m of v.methods) {
+      const tr = $("tr"), name = $("td");
+      if (!m.available) { name.append($("span", "ca-muted", `${m.method}: not available for this job`)); name.colSpan = 5; tr.append(name); t.append(tr); continue; }
+      const [col, word] = RELY(m.p), dot = $("span", "ca-dot");
+      dot.style.background = col; dot.title = word;
+      name.append(dot, m.method + (m.star ? " \u2605" : ""));
+      if (m.star) name.title = "A unique outcome can turn up here";
+      if (m.method === v.best) name.append($("span", "ca-tag good", "best $/nerve"));
+      else if (m.method === v.steady) name.append($("span", "ca-tag", "steadiest"));
+      const cell = (txt, tip) =&gt; { const td = $("td", "", txt); if (tip) td.title = tip; return td; };
+      tr.append(name,
+        cell(m.p == null ? "\u2013" : `${Math.round(m.p * 100)}%`, `${word}: ${m.tries ? `${m.ok} of your ${m.tries} worked` : "you haven't tried it"}; the community chart counts as 8 tries`),
+        cell(String(Math.round(m.nerve))),
+        cell(m.ev == null ? "\u2013" : `${m.tries ? "" : "~"}${short(m.ev)}/n`, m.tries ? "chance it works x what the job pays, less the materials you used, over the nerve" : "chance it works x what the job pays, over the nerve: before materials (you have not tried it, so their cost is unknown)"),
+        cell(m.tries ? String(m.crits) : "\u2013", "critical fails: jail or hospital"));
+      if (m.method === v.best) tr.className = "ca-best";
+      t.append(tr);
+    }
+    box.append(t, $("div", "ca-muted", (v.pay ? `This job pays you ~${short(v.pay)} whichever way. ` : "") +
+      "Cheaper methods can beat surer ones per nerve. Colours: the community chart, updated by your own results."));
+    return box;
+  }
+  // A reliability dot on each method's icon on the page, and a gold ring on the best $/nerve one. The icons are found
+  // by their labels ("Abandon", "Bury"...); if Torn's labels don't say, nothing is drawn (the card still has it all).
+  const VERB = { Abandoning: /abandon|leave/i, Burying: /bury/i, Burning: /burn/i, Sinking: /sink/i, Dissolving: /dissolv/i };
+  function markMethods(row, v) {
+    const labelled = [...row.querySelectorAll("[aria-label], [title]")].filter(x =&gt; !x.closest(".ca-chip, .ca-pop"));
+    for (const m of v.methods) {
+      if (!m.available) continue;
+      const icon = labelled.find(x =&gt; VERB[m.method].test(`${x.getAttribute("aria-label") || ""} ${x.getAttribute("title") || ""}`));
+      if (!icon || icon.querySelector(":scope &gt; .ca-mdot")) continue;
+      const [col, word] = RELY(m.p), dot = $("span", "ca-mdot");
+      dot.style.background = col; dot.title = `${m.method}: ${word}`;
+      if (getComputedStyle(icon).position === "static") icon.style.position = "relative";
+      if (m.method === v.best) icon.style.boxShadow = "0 0 0 2px #e3b341";
+      icon.appendChild(dot);
+    }
+  }
+  function badges() {
+    const list = values &amp;&amp; values.tabs[CA.slug(tab || "")];
+    if (!list || !list.length) return;
+    const root = document.querySelector("[class*='crimes-app'], #react-root, .content-wrapper") || body;
+    root.querySelectorAll(".ca-chip").forEach(c =&gt; { if (+c.dataset.v !== version) c.remove(); });
+    const byName = new Map();
+    list.forEach(v =&gt; v.find.forEach(f =&gt; byName.set(f.toLowerCase(), v)));
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), hits = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = n.nodeValue.trim().toLowerCase();
+      if (t.length &lt; 3 || t.length &gt; 60 || !byName.has(t)) continue;
+      const el = n.parentElement;
+      if (el &amp;&amp; !el.closest(".ca-chip, .ca-pop, .ca-panel") &amp;&amp; !el.querySelector(":scope &gt; .ca-chip")) hits.push([el, byName.get(t)]);
+    }
+    for (const [el, v] of hits) {
+      const { needs, row } = requirements(el, byName);
+      const text = row.textContent || "", pct = +((text.match(/(\d{1,3})%/) || [])[1] ?? NaN);
+      const short100 = needs.some(n =&gt; /total destruction/i.test(n)) &amp;&amp; /COLLECT/.test(text) &amp;&amp; pct &lt; 100;
+      const b = $("button", "ca-chip " + (short100 ? "bad" : v.worth ? "good" : !v.few &amp;&amp; v.vs_crime &gt;= 1 ? "mid" : ""));
+      b.type = "button";
+      b.dataset.v = version;
+      b.textContent = (short100 ? `fell short ${pct}%` : v.per_nerve &lt; 0 ? "lost money" : `${short(v.per_nerve)}/nerve`)
+        + (v.best ? ` \u00b7 ${HOW[v.best] || v.best.toLowerCase()}` : "") + " \u25be";
+      b.onclick = e =&gt; { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null); };
+      el.appendChild(b);
+      if (v.methods) markMethods(row, v);
+    }
+  }
+
+  // ---------------- run ----------------
+  let started = false;
+  async function start() {
+    await recompute();
+    if (!started) {
+      started = true;
+      setInterval(() =&gt; { const t = currentTab(); if (t !== tab) { tab = t; closePop(); } if (tab) badges(); }, 1000);
+      setInterval(() =&gt; sync(renderPanel).then(recompute), 5 * 60000);  // new logs every 5 minutes while Torn is open
+    }
+    if (get("key", "")) sync(renderPanel).then(recompute);
+  }
+  if (onCrimes) start();
+  else if (get("key", "")) {  // other Torn pages only keep the logs up to date (history keeps loading while you play)
+    sync(() =&gt; {});
+    setInterval(() =&gt; sync(() =&gt; {}), 5 * 60000);
+  }
+})();
+</textarea>
+        </div>
+      </div></li>
+      <li><div>
+        <h3>Make a Custom API key with only "log"</h3>
+        <p>Torn's key form has no Custom option of its own, so use this link. It opens the form pre-filled with a key named "Crime Advisor" that can only read logs: <a href="https://www.torn.com/preferences.php#tab=api?step=addNewKey&amp;title=Crime%20Advisor&amp;user=log" target="_blank" rel="noopener">make a log-only key</a>. Check it lists only <b>log</b>, create it, and copy the key. The same link is in the script's panel.</p>
+        <p class="note">Torn only shows crime logs to keys with log access. A Limited key won't work. A Full key works but gives the script more than it needs, so use the log-only one.</p>
+      </div></li>
+      <li><div>
+        <h3>Paste the key into the panel</h3>
+        <p>Go to any Crimes page, click <b>Crime Advisor</b> in the bottom-left, paste the key and press <b>Save key</b>. It checks the key straight away and tells you if Torn refuses it.</p>
+      </div></li>
+      <li><div>
+        <h3>Let it read your history</h3>
+        <p>Your newest logs load first, so buttons appear within a few seconds. Older logs then load in the background at 100 logs every 3 seconds: about 5 minutes per 10,000 crime logs. That's roughly 20 of Torn's 100 calls a minute, so your other tools keep working. The numbers update every 2,000 logs as it goes. It carries on from where it stopped next time you open Torn, and only one tab downloads at a time (the others say so).</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="nokey">
+    <h2 id="nokey">Without a key</h2>
+    <p>Arson still works with no key at all. Each job gets a button with the community's payout range and recipe (what to place, what to ignite with, when to stoke), the job's requirements, and a red warning on a job that needs 100% and topped out short of it.</p>
+  </section>
+
+  <section aria-labelledby="data">
+    <h2 id="data">Your key and your data</h2>
+    <div class="table-scroll">
+      <table class="facts">
+        <tr><th scope="row">Data storage</th><td>Only in your browser. Your crime logs go into the browser's own storage (IndexedDB) so they aren't downloaded twice. Settings and your key are kept by Tampermonkey.</td></tr>
+        <tr><th scope="row">Data sharing</th><td>None. Nothing about you leaves your browser.</td></tr>
+        <tr><th scope="row">Purpose of use</th><td>Personal: your own $/nerve per crime.</td></tr>
+        <tr><th scope="row">Key storage &amp; sharing</th><td>Stored in Tampermonkey on this browser. Sent only to <code>api.torn.com</code>.</td></tr>
+        <tr><th scope="row">Key access level</th><td>Custom, with <code>log</code> only.</td></tr>
+        <tr><th scope="row">Other downloads</th><td>Public arson recipes from <code>balaclava.app</code> (the Arsonist's Ledger) and item prices from Torn, each refreshed once a day. No key is sent with the recipe download.</td></tr>
+      </table>
+    </div>
+    <p>It's read-only. It never clicks, commits a crime or does anything in Torn for you. Each browser keeps its own copy, so a second computer downloads your history again.</p>
+  </section>
+
+  <section aria-labelledby="new">
+    <h2 id="new">What's new in 1.2.0</h2>
+    <ul>
+      <li><b>Disposal works for every job.</b> Only Broken Appliance and Firearm got a button before: the logs say "abandoning <i>some</i> general waste", which didn't match the page's General Waste. </li>
+      <li><b>Which disposal method to use.</b> Each job's button names the method with the best expected $/nerve (<code>$19k/nerve &middot; abandon</code>), and its card rates every method: reliability (the chart's colours), nerve, expected $/nerve and your critical fails. Reliability starts from the community's disposal chart (Feb 2024, 35,517 disposals) and follows your own results. Cheap and shaky can beat sure and dear: abandoning a dead body (6 nerve, ~80%) usually beats burning it (10 nerve, ~90%), which is why veterans leave them.</li>
+      <li><b>Newer forgery projects are counted.</b> Holographing a Travel Visa, programming or chipping an ID Badge, casting or polishing a Skeleton Key, framing, branding and gluing weren't recognised: their nerve was left out, so Forgery read higher than it should.</li>
+      <li><b>Bootlegging's online store is counted.</b> Setting it up and collecting its funds were left out, so Bootlegging read lower than it should.</li>
+      <li><b>Graffiti by district.</b> Each district on the Graffiti page gets its own button.</li>
+    </ul>
+    <p>Your stored logs are re-read with the new rules: nothing needs downloading again.</p>
+  </section>
+
+  <section aria-labelledby="update">
+    <h2 id="update">Updating</h2>
+    <p>It updates itself: Tampermonkey checks this site for a new version about once a day (or straight away with <b>Check for userscript updates</b> in its menu). Your key and the logs you've already downloaded are kept.</p>
+    <p class="note">Pasted it in by hand before this page existed? Press <b>Install Crime Advisor</b> above once: Tampermonkey offers it as an update to your existing copy, keeping your key and logs, and it updates itself from then on.</p>
+  </section>
+
+  <section aria-labelledby="help">
+    <h2 id="help">If something's off</h2>
+    <dl class="faq">
+      <div><dt>"the key can't read logs"</dt><dd>The key has no log access. Use <b>Make a log-only key</b> in the panel and paste the new key with <b>Replace key</b>.</dd></div>
+      <div><dt>"the API key isn't right"</dt><dd>The key was mistyped or deleted on Torn. Copy it again from Settings &rsaquo; API Keys; it's 16 letters and numbers.</dd></div>
+      <div><dt>"too many requests: waiting"</dt><dd>Other tools used up Torn's 100 calls a minute. The script waits a minute and carries on by itself.</dd></div>
+      <div><dt>No buttons on a crime page</dt><dd>Buttons only appear for things you've done before (or community arson jobs). Check the panel: if the log count is still climbing, give it a few minutes. Also check Tampermonkey shows the script as enabled on torn.com.</dd></div>
+      <div><dt>"your logs are re-read each visit"</dt><dd>The browser is blocking storage, usually a private window. It still works, but only on your most recent ~2,000 logs. Use a normal window to keep the full history.</dd></div>
+      <div><dt>A number looks wrong</dt><dd>Prices are today's market values, so old materials and rewards are re-priced. Crimes where the money lands on a later step than the nerve (card skimming, for one) are valued as a whole crime rather than per target.</dd></div>
+      <div><dt>Start over</dt><dd>Panel &rsaquo; <b>Remove key and data</b> clears your key and every stored log from this browser. Deleting the key on Torn stops it working everywhere.</dd></div>
+    </dl>
+  </section>
+
+  <footer>
+    <p>Made by AJTheSecond. Arson recipes come from the community's Arsonist's Ledger at balaclava.app; the payouts and $/nerve on your buttons are from your own logs.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var btn=document.getElementById("copy"), src=document.getElementById("src"), note=document.getElementById("copy-note");
+  function say(t){note.textContent=t;setTimeout(function(){note.textContent="";},4000);}
+  btn.addEventListener("click",function(){
+    var text=src.value;
+    function fallback(){src.focus();src.select();say("Selected: press Ctrl+C");}
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){say("Copied");},fallback);
+      }else fallback();
+    }catch(e){fallback();}
+  });
+})();
+</script>
+
+
+</body>
+</html>
