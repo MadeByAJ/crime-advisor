@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://api.torn.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'self'; form-action 'none'">
+<title>Travel Profits for Torn · TornBrain</title>
+<meta name="description" content="What your trips abroad earn in Torn: per destination, per item, per flight hour. From your own logs, in your browser, with a log-only key.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tornbrain.com/travel/">
+<meta property="og:title" content="Travel Profits for Torn">
+<meta property="og:description" content="What your trips abroad earn: per destination, per item, per flight hour. Your key stays in your browser.">
+<meta name="theme-color" content="#1a1a19">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../lib/site.css">
+</head>
+<body>
+<nav class="site-nav" aria-label="TornBrain">
+  <a class="brand" href="../">TornBrain</a>
+  <a href="../travel/" aria-current="page">Travel Profits</a>
+  <a href="../crime-advisor/">Crime Advisor</a>
+</nav>
+<div class="wrap wide">
+  <header class="hero">
+    <div class="eyebrow">Web app · reads your own logs</div>
+    <h1>Travel Profits</h1>
+    <p class="lede">What your trips abroad earn: per destination, per item you bring back, and per hour in the air. Worked out from your own Torn logs, right here in your browser.</p>
+    <div class="meta"><span>Log-only key</span><span>Your key and logs stay in your browser</span><span>Nothing is sent to us</span></div>
+  </header>
+
+  <div id="demo-note" class="note" hidden>You're looking at <b>made-up example trips</b>, so you can see what it shows before you use a key. <a href="./">Use my own logs</a></div>
+
+  <section id="start" class="card" hidden aria-labelledby="start-h">
+    <h2 id="start-h">Start with a log-only key</h2>
+    <ol class="steps-plain">
+      <li><a class="btn" id="make-key" target="_blank" rel="noopener">Make a Travel key in Torn</a>
+        <span class="faint">Torn's own form opens with just <code>log</code> ticked. Not a Full Access key: it can't see your money, stats, items or messages, only your logs. You can delete it in Torn any time.</span></li>
+      <li><label class="field" for="key-in">Paste the 16-character key here<input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="16 characters"></label>
+        <label class="check"><input type="checkbox" id="remember"> Remember it on this device <span class="faint">(otherwise it's forgotten when you close this tab)</span></label></li>
+    </ol>
+    <div><button class="btn" id="go">Read my travel logs</button> <a class="btn ghost" href="?demo">See an example first</a></div>
+    <div class="err" id="key-err" role="alert"></div>
+  </section>
+
+  <section id="app" hidden>
+    <div class="card" id="status-card">
+      <div class="bar">
+        <div id="status" aria-live="polite"></div>
+        <div class="actions"><button class="btn ghost small" id="older" hidden>Load older history</button><button class="btn ghost small" id="refresh">Refresh</button><button class="btn ghost small" id="forget">Forget my key and data</button></div>
+      </div>
+      <div class="progress" id="bar" hidden><i></i></div>
+    </div>
+    <div class="chips" role="group" aria-label="Period" id="range"></div>
+    <div class="tiles" id="tiles"></div>
+    <p class="faint" id="tiles-note"></p>
+    <section aria-labelledby="dest-h"><h2 id="dest-h">Destinations</h2>
+      <p class="faint">Goods = what the items you bought there sold for (or are worth, waiting to sell) minus what they cost; plus anything you mugged while there.</p>
+      <div class="table-scroll"><table class="data" id="dest"></table></div></section>
+    <section aria-labelledby="items-h"><h2 id="items-h">What you buy abroad</h2>
+      <p class="faint">Each sale takes from your oldest purchase of that item. Trades that paid money count as sales; items sent or traded for nothing count at market value.</p>
+      <div class="table-scroll"><table class="data" id="items"></table></div></section>
+    <section aria-labelledby="trips-h"><h2 id="trips-h">Recent trips</h2>
+      <div class="table-scroll"><table class="data" id="trips"></table></div></section>
+  </section>
+
+  <section aria-labelledby="key-h">
+    <h2 id="key-h">Your key and your data</h2>
+    <div class="table-scroll"><table class="facts">
+      <tr><th>Data storage</th><td>Only in your browser. Your travel, trade and sale logs go into this site's own browser storage (IndexedDB) so they aren't downloaded twice. Nothing is stored anywhere else.</td></tr>
+      <tr><th>Data sharing</th><td>None. There's no server behind this page: your logs never leave your browser.</td></tr>
+      <tr><th>Purpose of use</th><td>Personal: what your own trips abroad earn.</td></tr>
+      <tr><th>Key storage &amp; sharing</th><td>Kept in this tab only, or in this browser if you tick "Remember". Sent only to <code>api.torn.com</code> (the page's security policy blocks any other address). "Forget my key and data" removes it and every log.</td></tr>
+      <tr><th>Key access level</th><td>Custom, with <code>log</code> only.</td></tr>
+      <tr><th>What it reads</th><td>Your travel, abroad-purchase, item sale (shops, item market, bazaar, Big Al's), trade, item-send and mugging logs, and Torn's public item prices. At most one request every 2 seconds.</td></tr>
+    </table></div>
+  </section>
+
+  <footer>
+    <span>Made by <a href="https://www.torn.com/profiles.php?XID=3395781" rel="noopener" target="_blank">AJTheSecond [3395781]</a>. Not affiliated with Torn.</span>
+    <span><a href="../">More TornBrain tools</a></span>
+  </footer>
+</div>
+<script src="../lib/torn.js"></script>
+<script src="../lib/travel-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
