@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">  <!-- stealth testing: remove at launch -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'self'; form-action 'none'">
+<title>TornBrain · Torn tools that keep your key in your browser</title>
+<meta name="description" content="Torn tools that work from your own logs, in your browser, with a log-only key: Travel Profits and Crime Advisor.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tornbrain.com/">
+<meta property="og:title" content="TornBrain">
+<meta property="og:description" content="Torn tools that work from your own logs, in your browser, with a log-only key.">
+<meta name="theme-color" content="#1a1a19">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="lib/site.css">
+</head>
+<body>
+<nav class="site-nav" aria-label="TornBrain">
+  <a class="brand" href="./" aria-current="page">TornBrain</a>
+  <a href="travel/">Travel Profits</a>
+  <a href="crime-advisor/">Crime Advisor</a>
+</nav>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Tools for Torn</div>
+    <h1>Your numbers, without handing over your key</h1>
+    <p class="lede">TornBrain's tools work out what your play is earning from your own Torn logs. They run in your browser with a key that can only read logs, and nothing about you is sent to us: there's no server to send it to.</p>
+  </header>
+
+  <section aria-labelledby="tools-h">
+    <h2 id="tools-h">Tools</h2>
+    <div class="cards">
+      <article class="card">
+        <div class="eyebrow">Web app</div>
+        <h2>Travel Profits</h2>
+        <p>What your trips abroad earn: per destination, per item you bring back, and per hour in the air. Sales, trades and mugs while you're there, all from your logs.</p>
+        <div class="actions"><a class="btn" href="travel/">Open Travel Profits</a><a class="btn ghost" href="travel/?demo">See an example</a></div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Userscript · Tampermonkey</div>
+        <h2>Crime Advisor</h2>
+        <p>Your own $/nerve next to every crime, arson job, scam, search spot and disposal method, right on Torn's Crimes pages.</p>
+        <div class="actions"><a class="btn" href="crime-advisor/">Install and guide</a></div>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="key-h">
+    <h2 id="key-h">How your key is handled</h2>
+    <div class="table-scroll"><table class="facts">
+      <tr><th>The key</th><td>A custom key with only <code>log</code> ticked: each tool links to Torn's own form with that filled in. It can't see your money, stats, items or messages, and you can delete it in Torn any time.</td></tr>
+      <tr><th>Where it goes</th><td>Only to <code>api.torn.com</code>. The web apps' security policy blocks requests to any other address.</td></tr>
+      <tr><th>Where it's kept</th><td>In your browser: the tab only, unless you choose "remember". "Forget my key and data" removes it and every log a tool has read.</td></tr>
+      <tr><th>Your data</th><td>Read and worked out in your browser, and kept in its storage so it isn't downloaded twice. Never sent to us or anyone else.</td></tr>
+      <tr><th>The code</th><td>Everything runs in your browser, and all of it is public: <a href="https://github.com/MadeByAJ/crime-advisor" rel="noopener" target="_blank">github.com/MadeByAJ/crime-advisor</a>.</td></tr>
+    </table></div>
+  </section>
+
+  <footer>
+    <span>Made by <a href="https://www.torn.com/profiles.php?XID=3395781" rel="noopener" target="_blank">AJTheSecond [3395781]</a>. Not affiliated with Torn.</span>
+  </footer>
+</div>
+</body>
+</html>
