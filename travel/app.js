@@ -18,12 +18,12 @@
   const m = n => `<span title="${money(n)}">${short(n)}</span>`;
   const hours = h => h == null ? "–" : h >= 10 ? `${Math.round(h)}h` : `${Math.floor(h)}h${String(Math.round((h % 1) * 60)).padStart(2, "0")}`;
   const when = ts => new Date(ts * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  // trade partners are named by Torn id: a link to their profile (we don't look anyone up)
-  const people = s => esc(s).replace(/player (\d+)/g, (_, id) => `<a class="player" href="https://www.torn.com/profiles.php?XID=${id}" target="_blank" rel="noopener">player ${id}</a>`);
+  // trade partners: Torn's logs carry their id (written @id here); the name once looked up (Torn.players), else the id
+  const people = s => esc(s).replace(/@(\d+)/g, (_, id) => `<a class="player" href="https://www.torn.com/profiles.php?XID=${id}" target="_blank" rel="noopener">${esc(playerNames[id] || `player ${id}`)}</a>`);
 
   const demo = new URLSearchParams(location.search).has("demo");
   let days = ls("tornbrain.travel.days") ?? 30;
-  let sample = null, itemInfo = {}, busy = false, pages = 0;
+  let sample = null, itemInfo = {}, playerNames = Torn.knownPlayers(), busy = false, pages = 0;
 
   function status(html, progress) {
     $("#status").innerHTML = html;
@@ -38,7 +38,7 @@
     const now = demo ? sample.now : Math.floor(Date.now() / 1000);
     const price = {}, names = {};
     for (const [id, [name, p]] of Object.entries(demo ? sample.items : itemInfo)) { names[id] = name; if (p) price[id] = p; }
-    const r = T.report(all, days || null, { now, price, names });
+    const r = T.report(all, days || null, { now, price, names, who: id => `@${id}` });
     const t = r.totals;
     $("#range").innerHTML = RANGES.map(([d, l]) => `<button class="chip" data-days="${d}" aria-pressed="${d === days}">${l}</button>`).join("");
     const best = r.countries.filter(c => c.trips >= 2 && c.per_flight_h != null).sort((a, b) => b.per_flight_h - a.per_flight_h)[0];
@@ -94,6 +94,10 @@
         const all = await db.all(), ids = new Set();
         for (const l of all) for (const [id] of T.lines(l.d)) ids.add(id);
         itemInfo = await Torn.items([...ids], COMMENT);
+        // the names of who your items went to (the people the tables show, over all time)
+        const r = T.report(all, null, { now: Math.floor(Date.now() / 1000), who: id => `@${id}` });
+        const who = new Set(r.items.flatMap(i => `${i.sells_to || ""} ${i.gives_to || ""}`.match(/@\d+/g) || []).map(x => x.slice(1)));
+        if (who.size) { status("Looking up who you trade with…", 98); playerNames = await Torn.players([...who], COMMENT); }
       });
       if (!ran) status("Another tab is reading your logs: this one shows them once it's done. <button class=\"btn ghost small\" id=\"again\">Check again</button>");
       ls("tornbrain.travel.synced", Date.now());
@@ -109,8 +113,8 @@
 
   async function showSynced(horizon) {
     const n = await db.count(), at = ls("tornbrain.travel.synced");
-    const lim = Torn.items.limited || (ls("tornbrain.items") || {}).limited;
-    status(`<b>${n.toLocaleString()}</b> logs read${horizon ? " (the last year)" : ""}${at ? `, updated ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}.${db.memoryOnly ? ' <span class="faint">Your browser blocks storage here, so they\'re read again next visit.</span>' : ""}${lim ? ` <span class="faint">Your key can't read Torn's item list, so unsold items are valued at Torn's prices${Torn.items.asOf ? ` from ${when(Torn.items.asOf)}` : " from a few days ago"}. <a href="${Torn.keyLink("TornBrain Travel")}" target="_blank" rel="noopener">A key with the item list</a> gets today's.</span>` : ""}`);
+    const lim = Torn.items.limited || (ls("tornbrain.items") || {}).limited, nameless = Torn.players.limited;
+    status(`<b>${n.toLocaleString()}</b> logs read${horizon ? " (the last year)" : ""}${at ? `, updated ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}.${db.memoryOnly ? ' <span class="faint">Your browser blocks storage here, so they\'re read again next visit.</span>' : ""}${lim ? ` <span class="faint">Your key can't read Torn's item list, so unsold items are valued at Torn's prices${Torn.items.asOf ? ` from ${when(Torn.items.asOf)}` : " from a few days ago"}.</span>` : ""}${nameless ? ` <span class="faint">Your key can't look up names, so trade partners show by id: <a href="${Torn.keyLink("TornBrain Travel")}" target="_blank" rel="noopener">a key made with this link</a> (it adds <code>basic</code>) names them.</span>` : ""}`);
     $("#older").hidden = !horizon;
   }
 
@@ -139,7 +143,7 @@
     if (!confirm("Forget your key and every log this page has read? (The key itself keeps working in Torn until you delete it there.)")) return;
     Torn.forgetKey();
     STREAMS.forEach(s => Torn.forgetSync(s.id));
-    Torn.forgetItems();
+    Torn.forgetItems(); Torn.forgetPlayers(); playerNames = {};
     try { ["tornbrain.travel.horizon", "tornbrain.travel.synced"].forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignore */ }
     await db.drop();
     itemInfo = {};

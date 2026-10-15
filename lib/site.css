@@ -66,6 +66,8 @@ header.hero{display:grid;gap:14px}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:2px;min-width:0}
 .tile .l{font-size:13px;color:var(--muted)} .tile .v{font:600 24px var(--mono);overflow-wrap:anywhere} .tile .s{font-size:13px;color:var(--muted)}
 .table-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+/* wide tables use the window's width (to 1600px) when it has more than the page column; never past the screen */
+.table-scroll.bleed{margin-inline:min(0px,calc((100% - min(100vw - 60px,1600px)) / 2))}
 table.data{width:100%;border-collapse:collapse;font-size:15px}
 table.data th,table.data td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
 table.data th{font:600 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--surface-2)}
