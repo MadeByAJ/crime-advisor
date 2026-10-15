@@ -81,6 +81,7 @@
     if (older) { horizon = 0; ls("tornbrain.travel.horizon", 0); }
     else if (ls("tornbrain.travel.horizon") == null) ls("tornbrain.travel.horizon", horizon);
     const label = () => horizon ? "the last year" : "all of your history";
+    let reading = true;  // (a key that can't read logs goes back to the start; later steps never do)
     try {
       const ran = await Torn.withLock("travel", async () => {
         for (const [i, s] of STREAMS.entries()) {
@@ -88,6 +89,7 @@
             onPage: () => { pages++; status(`Reading your logs (${label()})… ${pages} page${pages === 1 ? "" : "s"} so far. <span class="faint">One request every 2 seconds.</span>`, Math.min(95, (i * 50) + pages * 2)); } });
           await render();
         }
+        reading = false;
         status("Fetching item names and today's prices…", 97);
         const all = await db.all(), ids = new Set();
         for (const l of all) for (const [id] of T.lines(l.d)) ids.add(id);
@@ -99,14 +101,16 @@
       await render();
     } catch (e) {
       status(`<span class="err">${esc(e.message)}</span>`);
-      if (e.code === 2 || e.code === 16 || e.code === 13 || e.code === 18) { Torn.forgetKey(); showStart(e.message); }
+      if (reading && [2, 16, 13, 18].includes(e.code)) { Torn.forgetKey(); showStart(e.message); }
+      else if (!reading) status(`<span class="err">Your logs are read, but ${esc(e.message.charAt(0).toLowerCase() + e.message.slice(1))}</span> <button class="btn ghost small" id="again">Try again</button>`);
       if (e.code === 5) setTimeout(() => sync(), 60000);
     } finally { busy = false; }
   }
 
   async function showSynced(horizon) {
     const n = await db.count(), at = ls("tornbrain.travel.synced");
-    status(`<b>${n.toLocaleString()}</b> logs read${horizon ? " (the last year)" : ""}${at ? `, updated ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}.${db.memoryOnly ? ' <span class="faint">Your browser blocks storage here, so they\'re read again next visit.</span>' : ""}`);
+    const lim = Torn.items.limited || (ls("tornbrain.items") || {}).limited;
+    status(`<b>${n.toLocaleString()}</b> logs read${horizon ? " (the last year)" : ""}${at ? `, updated ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}.${db.memoryOnly ? ' <span class="faint">Your browser blocks storage here, so they\'re read again next visit.</span>' : ""}${lim ? ` <span class="faint">Your key can't read Torn's item list, so unsold items are valued at Torn's prices${Torn.items.asOf ? ` from ${when(Torn.items.asOf)}` : " from a few days ago"}. <a href="${Torn.keyLink("TornBrain Travel")}" target="_blank" rel="noopener">A key with the item list</a> gets today's.</span>` : ""}`);
     $("#older").hidden = !horizon;
   }
 
