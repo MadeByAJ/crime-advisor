@@ -116,7 +116,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
     <h1>Crime Advisor</h1>
     <p class="lede">A small button next to every job, scam, search spot and shop on the Crimes pages shows what it has paid you per nerve. Click it for the full story: your history, the requirements, and the community's arson recipe.</p>
-    <div class="meta"><span>v1.2.2</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v1.2.3</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -166,11 +166,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 847 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 856 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      1.2.2
+// @version      1.2.3
 // @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -652,21 +652,30 @@ else (function main() {
     syncing = true;
     const beat = setInterval(() =&gt; set("lock", Date.now()), 5000);
     set("lock", Date.now());
-    const st = memoryOnly &amp;&amp; !syncedThisVisit ? { newest: null, oldest: null, done: false } : get("sync", { newest: null, oldest: null, done: false });
+    // (v2: a full read once more, for what earlier versions skipped; see below)
+    const blank = { v: 2, newest: null, oldest: null, done: false };
+    let st = memoryOnly &amp;&amp; !syncedThisVisit ? { ...blank } : get("sync", blank);
+    if (st.v !== 2) st = { ...blank };
     syncedThisVisit = true;
     try {
       syncError = "";
-      // new logs: page back from now to the newest we have (a first run takes one page; history does the rest)
-      const fresh = st.newest == null;
-      let to = null;
-      for (let i = 0; i &lt; 30; i++) {
-        const logs = await page(to, st.newest ? st.newest - 1 : null);
+      // new logs: page back from now to the newest we have (a first run takes one page; history does the rest).
+      // `to` is inclusive: one crime writes several logs in the same second, and a page can end part way through it,
+      // so the next page starts at that same second (logs are stored once, by id); a page with nothing new steps
+      // past it. Up to 1.2.2 a later visit read only its newest page: the lower bound followed the newest log as it
+      // was read, so the logs between that page and the last visit were never read (and a split second was lost).
+      const fresh = st.newest == null, had = st.newest;
+      let to = null, prev = new Set();
+      for (let i = 0; i &lt; 300; i++) {
+        const logs = await page(to, had ? had - 1 : null);
         if (!logs.length) { if (st.newest == null) st.done = true; break; }
-        const ts = logs.map(l =&gt; l.timestamp);
+        const ts = logs.map(l =&gt; l.timestamp), oldest = Math.min(...ts);
         st.newest = Math.max(st.newest || 0, ...ts);
-        if (st.oldest == null) st.oldest = Math.min(...ts);
+        if (st.oldest == null) st.oldest = oldest;
         if (fresh || logs.length &lt; 100) break;
-        to = Math.min(...ts) - 1;
+        const more = logs.some(l =&gt; !prev.has(String(l.id)));
+        prev = new Set(logs.map(l =&gt; String(l.id)));
+        to = more ? oldest : oldest - 1;
       }
       set("sync", st);
       onProgress();
@@ -836,7 +845,7 @@ else (function main() {
     if (key) {
       const forget = $("button", "ca-ghost", "Remove key and data");
       forget.onclick = async () =&gt; { if (!confirm("Remove your key and the crime logs stored in this browser?")) return;
-        set("key", ""); set("sync", { newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
+        set("key", ""); set("sync", { v: 2, newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
       panel.append(forget);
       const st = get("sync", {});
       const status = syncError ? $("div", "ca-err", `Sync problem: ${syncError}`)

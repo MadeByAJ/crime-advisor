@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      1.2.2
+// @version      1.2.3
 // @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -483,21 +483,30 @@ else (function main() {
     syncing = true;
     const beat = setInterval(() => set("lock", Date.now()), 5000);
     set("lock", Date.now());
-    const st = memoryOnly && !syncedThisVisit ? { newest: null, oldest: null, done: false } : get("sync", { newest: null, oldest: null, done: false });
+    // (v2: a full read once more, for what earlier versions skipped; see below)
+    const blank = { v: 2, newest: null, oldest: null, done: false };
+    let st = memoryOnly && !syncedThisVisit ? { ...blank } : get("sync", blank);
+    if (st.v !== 2) st = { ...blank };
     syncedThisVisit = true;
     try {
       syncError = "";
-      // new logs: page back from now to the newest we have (a first run takes one page; history does the rest)
-      const fresh = st.newest == null;
-      let to = null;
-      for (let i = 0; i < 30; i++) {
-        const logs = await page(to, st.newest ? st.newest - 1 : null);
+      // new logs: page back from now to the newest we have (a first run takes one page; history does the rest).
+      // `to` is inclusive: one crime writes several logs in the same second, and a page can end part way through it,
+      // so the next page starts at that same second (logs are stored once, by id); a page with nothing new steps
+      // past it. Up to 1.2.2 a later visit read only its newest page: the lower bound followed the newest log as it
+      // was read, so the logs between that page and the last visit were never read (and a split second was lost).
+      const fresh = st.newest == null, had = st.newest;
+      let to = null, prev = new Set();
+      for (let i = 0; i < 300; i++) {
+        const logs = await page(to, had ? had - 1 : null);
         if (!logs.length) { if (st.newest == null) st.done = true; break; }
-        const ts = logs.map(l => l.timestamp);
+        const ts = logs.map(l => l.timestamp), oldest = Math.min(...ts);
         st.newest = Math.max(st.newest || 0, ...ts);
-        if (st.oldest == null) st.oldest = Math.min(...ts);
+        if (st.oldest == null) st.oldest = oldest;
         if (fresh || logs.length < 100) break;
-        to = Math.min(...ts) - 1;
+        const more = logs.some(l => !prev.has(String(l.id)));
+        prev = new Set(logs.map(l => String(l.id)));
+        to = more ? oldest : oldest - 1;
       }
       set("sync", st);
       onProgress();
@@ -667,7 +676,7 @@ else (function main() {
     if (key) {
       const forget = $("button", "ca-ghost", "Remove key and data");
       forget.onclick = async () => { if (!confirm("Remove your key and the crime logs stored in this browser?")) return;
-        set("key", ""); set("sync", { newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
+        set("key", ""); set("sync", { v: 2, newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
       panel.append(forget);
       const st = get("sync", {});
       const status = syncError ? $("div", "ca-err", `Sync problem: ${syncError}`)

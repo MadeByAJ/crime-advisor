@@ -1,6 +1,6 @@
 # Crime Advisor
 
-**Install and guide: https://tornbrain.com/crime-advisor/**
+**Install and guide: https://tornbrain.com**
 
 A Torn userscript for the Crimes pages. A small button next to every arson job, scam, search spot and shop shows what that crime has paid **you** per nerve, from your own crime logs. Click the button for the full card: your history with it, the job's requirements, and the community's arson recipe.
 
@@ -9,7 +9,7 @@ Read-only: it never clicks, commits a crime or does anything in Torn for you.
 ## Install
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) for Chrome, Edge or Firefox. In Chrome and Edge, turn on **Allow user scripts** (or Developer mode) for the extension when it asks.
-2. Open **https://tornbrain.com/crime-advisor.user.js**: Tampermonkey shows its install page, press **Install**. Installed this way it keeps itself up to date. (Or copy the script from https://tornbrain.com/crime-advisor/ and paste it into a new Tampermonkey script.)
+2. Open **https://tornbrain.com/crime-advisor.user.js**: Tampermonkey shows its install page, press **Install**. Installed this way it keeps itself up to date. (Or copy the script from https://tornbrain.com and paste it into a new Tampermonkey script.)
 3. Make a log-only API key with this link, which opens Torn's key form pre-filled:
    **[Make a log-only key](https://www.torn.com/preferences.php#tab=api?step=addNewKey&title=Crime%20Advisor&user=log)**
    Check it lists only **log**, create it and copy the key. (Torn's own form has no Custom option, so the link is the way to get one.)
