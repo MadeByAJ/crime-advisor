@@ -2,6 +2,18 @@
    lib/travel-core.js (the same numbers as TornBrain's own Travel page). */
 (function () {
   "use strict";
+  // A copy of this page cached from before an update reloads itself once (the browser keeps the page up to 10
+  // minutes, and the old page loads the old scripts: testers needed a hard refresh after fixes, 2026-10-16).
+  (async () => {
+    try {
+      const mine = document.querySelector('meta[name="tb-version"]')?.content;
+      const { v } = await (await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" })).json();
+      if (mine && v && v !== mine && sessionStorage.getItem("tb-reloaded") !== v) {
+        sessionStorage.setItem("tb-reloaded", v);
+        location.reload();
+      }
+    } catch (e) { /* offline, or storage blocked: carry on with this copy */ }
+  })();
   const T = TravelCore, COMMENT = "TornBrainTravel", db = Torn.store("tornbrain-travel");
   const STREAMS = [{ id: "travel-a", types: [6000, 4201, 4210, 1113, 1226, 1500, 6001, 6002] },
                    { id: "travel-b", types: [4445, 4102, 4441, 8155] }];  // (10 log types a request at most)
