@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      1.2.3
+// @version      1.2.4
 // @description  Your own $/nerve for every crime, arson job and scam type, plus community arson recipes, right on Torn's crime pages. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -117,22 +117,33 @@ const CA = (() => {
     });
   }
 
-  // Each arson job from inquire/breach to collect; items in the same second as a step are that step's job's.
-  function arsonJobs(events, price, now) {
+  // Each arson job from inquire/breach to collect. Items land within a second or two of a step, so they're that step's
+  // job's, filed by step: fuel placed, fuel stoked with (by stoke), evidence planted. Steps often share those seconds
+  // (one job placed while another burns), so a known fuel goes to the nearest place or stoke, anything else to the
+  // nearest planting. The Lighter and Flamethrower are kept, never logged as used: how a job was lit isn't in the logs.
+  const FUELS = new Set(["Gasoline", "Kerosene", "Diesel", "Hydrogen Tank", "Methane Tank", "Oxygen Tank", "Thermite", "Magnesium Shavings", "Potassium Nitrate"]);
+  const USES_ITEMS = ["Place combustible", "Plant evidence", "Stoke"];
+  function arsonJobs(events, price, now, names = {}) {
     const jobs = [], open = new Map(), stepAt = new Map();
-    for (const e of events) if (e.crime === ARSON && e.isStep && e.detail) (stepAt.get(e.ts) || stepAt.set(e.ts, []).get(e.ts)).push([e.detail, e.action]);
+    for (const e of events) if (e.crime === ARSON && e.isStep && e.detail) (stepAt.get(e.ts) || stepAt.set(e.ts, []).get(e.ts)).push([e.detail, e.action, e.ts]);
     const close = (j, state, ts) => { j.state = state; j.closed = ts; open.delete(j.job); };
     for (const e of events) {
       if (e.crime !== ARSON) continue;
       if (COST_TYPES.has(e.type)) {
         const near = [0, -1, 1, -2, 2].flatMap(dt => stepAt.get(e.ts + dt) || []);
-        const step = near.find(s => ["Place combustible", "Plant evidence", "Stoke"].includes(s[1])) || near[0];
-        const j = step ? open.get(step[0]) : [...open.values()].sort((a, b) => b.last - a.last)[0];
-        if (j) {
-          const used = [...items(e.d, ["items_used"])];
-          j.itemCost += used.reduce((s, [i, n]) => s + (price[i] || 0) * n, 0);
-          const bucket = step && step[1] === "Plant evidence" ? j.evidence : j.fuel;
-          for (const [i, n] of used) bucket[i] = (bucket[i] || 0) + n;
+        for (const [i, n] of items(e.d, ["items_used"])) {
+          const nm = names[i];
+          const want = !nm ? USES_ITEMS : FUELS.has(nm) ? ["Place combustible", "Stoke"] : ["Plant evidence"];
+          const step = near.find(s => want.includes(s[1])) || near.find(s => USES_ITEMS.includes(s[1])) || near[0];
+          const j = step ? open.get(step[0]) : [...open.values()].sort((a, b) => b.last - a.last)[0];
+          if (!j) continue;
+          j.itemCost += (price[i] || 0) * n;
+          const act = step ? step[1] : null;
+          let bucket;
+          if (act === "Plant evidence" || (!USES_ITEMS.includes(act) && nm && !FUELS.has(nm))) bucket = j.evidence;
+          else if (act === "Stoke" || (act !== "Place combustible" && j.lit)) bucket = j.stokeFuel[act === "Stoke" ? step[2] : e.ts] ||= {};
+          else bucket = j.place;
+          bucket[i] = (bucket[i] || 0) + n;
         }
         continue;
       }
@@ -143,14 +154,15 @@ const CA = (() => {
       if (j && (e.ts - j.last > ARSON_EXPIRE || (starts && j.worked))) { close(j, "expired", j.last); j = null; }
       if (!j) {
         j = { job, opened: e.ts, last: e.ts, closed: null, state: "open", nerve: 0, steps: 0, money: 0, itemCost: 0, worked: false,
-              lit: false, stokes: 0, dampens: 0, fuel: {}, evidence: {} };
+              lit: false, ignited: null, stokes: 0, stokeTs: [], dampens: 0, place: {}, stokeFuel: {}, evidence: {} };
         jobs.push(j); open.set(job, j);
       }
       j.last = e.ts;
       if (e.isStep) {
         j.nerve += e.nerve; j.steps += 1; j.money += e.money;
         j.worked = j.worked || e.action !== "Make entry";
-        j.lit = j.lit || (e.action === "Ignite" && e.result === "success");
+        if (e.action === "Ignite" && e.result === "success" && !j.lit) { j.lit = true; j.ignited = e.ts; }
+        if (e.action === "Stoke") j.stokeTs.push(e.ts);
         j.stokes += e.action === "Stoke"; j.dampens += e.action === "Dampen";
         if (e.action === "Collect" && e.result === "success") close(j, "paid", e.ts);
       }
@@ -221,10 +233,49 @@ const CA = (() => {
 
   function recipe(j, names) {
     const nm = i => names[i] || `item ${i}`;
-    const fuel = Object.entries(j.fuel).sort((a, b) => b[1] - a[1]).map(([i, n]) => n > 1 ? `${n}x ${nm(i)}` : nm(i)).join(" + ");
+    const many = d => Object.entries(d).sort((a, b) => b[1] - a[1]).map(([i, n]) => n > 1 ? `${n}x ${nm(i)}` : nm(i)).join(" + ");
     const ev = Object.keys(j.evidence).map(nm).join(" + ");
-    const text = [fuel, ev && `${ev} evidence`].filter(Boolean).join(" + ") || "no fuel logged";
-    return text + (j.stokes ? `, ${j.stokes} stoke${j.stokes > 1 ? "s" : ""}` : "") + (j.dampens ? `, ${j.dampens} dampen${j.dampens > 1 ? "s" : ""}` : "");
+    const text = [many(j.place), ev && `${ev} evidence`].filter(Boolean).join(" + ") || "no fuel logged";
+    const fed = {};
+    for (const d of Object.values(j.stokeFuel)) for (const [i, n] of Object.entries(d)) fed[i] = (fed[i] || 0) + n;
+    return text + (j.stokes ? `, ${j.stokes} stoke${j.stokes > 1 ? "s" : ""}` + (Object.keys(fed).length ? ` (${many(fed)})` : "") : "") +
+      (j.dampens ? `, ${j.dampens} dampen${j.dampens > 1 ? "s" : ""}` : "");
+  }
+  // One job step by step: what was placed, each stoke (minutes after it was lit, what it was fed), the evidence and
+  // any dampening. (TornBrain also has the Arson page's burn % at each stoke; here it's always null.)
+  function steps(j, names) {
+    const nm = i => names[i] || `item ${i}`;
+    const named = d => Object.fromEntries(Object.entries(d).map(([i, n]) => [nm(i), n]));
+    const fed = new Map(j.stokeTs.map(t => [t, {}]));
+    for (const [at, d] of Object.entries(j.stokeFuel)) {  // (fuel filed by second: to the stoke nearest it)
+      if (!fed.size) break;
+      const t = [...fed.keys()].reduce((a, s) => Math.abs(s - at) < Math.abs(a - at) ? s : a);
+      for (const [i, n] of Object.entries(d)) fed.get(t)[i] = (fed.get(t)[i] || 0) + n;
+    }
+    return { place: named(j.place), evidence: Object.keys(j.evidence).map(nm), dampens: j.dampens,
+             stokes: j.stokeTs.map(t => ({ min: j.ignited && t >= j.ignited ? Math.round((t - j.ignited) / 6) / 10 : null, pct: null, fuel: named(fed.get(t)) })) };
+  }
+  // How you ran a job when it paid (its last 20 payouts), step by step, to set beside the community recipe.
+  const RECORD_JOBS = 20;
+  function record(jobs, names) {
+    if (!jobs.length) return null;
+    const st = jobs.map(j => steps(j, names));
+    const tally = perJob => {  // [{item: qty}] a job -> [{item, jobs it was in, median qty}]
+      const seen = new Map();
+      for (const d of perJob) for (const [k, q] of Object.entries(d)) (seen.get(k) || seen.set(k, []).get(k)).push(q);
+      return [...seen].map(([item, v]) => ({ item, jobs: v.length, qty: median(v) }))
+        .sort((a, b) => b.jobs - a.jobs || (a.item < b.item ? -1 : a.item > b.item ? 1 : 0));
+    };
+    const stoked = st.filter(s => s.stokes.length), first = stoked.map(s => s.stokes[0]);
+    const mins = first.map(f => f.min).filter(m => m != null), pcts = first.map(f => f.pct).filter(p => p != null);
+    const fed = stoked.map(s => { const d = {}; for (const x of s.stokes) for (const [k, q] of Object.entries(x.fuel)) d[k] = (d[k] || 0) + q; return d; });
+    return { paid: st.length, place: tally(st.map(s => s.place)), stoked: stoked.length,
+             stokes: stoked.length ? median(stoked.map(s => s.stokes.length)) : null,
+             stoke_min: mins.length ? Math.round(median(mins) * 10) / 10 : null,
+             stoke_pct: pcts.length ? Math.round(median(pcts)) : null, pct_n: pcts.length,
+             stoke_fuel: tally(fed), tool_stokes: fed.filter(d => !Object.keys(d).length).length,
+             evidence: tally(st.map(s => Object.fromEntries(s.evidence.map(e => [e, 1])))),
+             dampened: st.filter(s => s.dampens).length, last: st[st.length - 1] };
   }
   function tendHint(t) {
     if (!t || t.paid < 2 || !t.stoked) return null;
@@ -285,7 +336,9 @@ const CA = (() => {
     const blank = () => ({ attempts: 0, nerve: 0, success: 0, fail: 0, crit: 0, money: 0, itemValue: 0, itemCost: 0 });
     const crimes = {}, actions = new Map(), kinds = new Map();
     const add = (t, e) => { t.attempts++; t.nerve += e.nerve; t[e.result]++; t.money += e.money;
-      for (const [i, n] of items(e.d, ["items_gained"])) t.itemValue += (price[i] || 0) * n; };
+      for (const [i, n] of items(e.d, ["items_gained"])) t.itemValue += (price[i] || 0) * n;
+      // a critical fail can lose the tool too (forgery's Embosser, bootlegging's drive): it's the attempt's cost
+      for (const [i, n] of items(e.d, ["items_lost"])) t.itemCost += (price[i] || 0) * n; };
     const get = (m, k) => m.get(k) || m.set(k, blank()).get(k);
     // Materials are logged in the same second as the step they were for: charged to what that step was done to (and,
     // for disposal, to how: burning's gasoline, dissolving's acid).
@@ -315,14 +368,14 @@ const CA = (() => {
     for (const [c, t] of Object.entries(crimes)) byCrime[c] = { id: +c, name: NAMES[c] || "Unrecognised", ...finish(t) };
 
     // arson jobs in range, and how each has been tended and fuelled when it paid (all time)
-    const allJobs = arsonJobs(events, price, now), arson = new Map(), tend = new Map();
+    const allJobs = arsonJobs(events, price, now, names), arson = new Map(), tend = new Map();
     for (const j of allJobs.filter(j => (j.closed || j.last) >= since)) {
       const a = arson.get(j.job) || arson.set(j.job, { job: j.job, instances: 0, paid: 0, expired: 0, open: 0, skipped: 0, nerve: 0, money: 0, itemCost: 0 }).get(j.job);
       a[j.state]++; a.instances += j.state !== "skipped"; a.nerve += j.nerve; a.money += j.money; a.itemCost += j.itemCost;
     }
     for (const j of allJobs) if (j.state === "paid" && j.lit) {
-      const t = tend.get(j.job) || tend.set(j.job, { paid: 0, stoked: 0, recipes: {}, last: null, payouts: [] }).get(j.job);
-      t.paid++; t.stoked += j.stokes > 0; t.payouts.push(j.money);
+      const t = tend.get(j.job) || tend.set(j.job, { paid: 0, stoked: 0, recipes: {}, last: null, payouts: [], jobs: [] }).get(j.job);
+      t.paid++; t.stoked += j.stokes > 0; t.payouts.push(j.money); t.jobs.push(j);
       const r = recipe(j, names); t.recipes[r] = (t.recipes[r] || 0) + 1; t.last = r;
     }
     // scam conversations in range, per method, with spam waves and a share of email farming
@@ -348,7 +401,8 @@ const CA = (() => {
       const t = tend.get(a.job), r = ref[jobTitle(a.job)];
       const recent = t ? t.payouts.slice(-6).filter(p => p > 0) : [];
       out.push({ crime_id: ARSON, kind: a.job, nerve: a.nerve, net: a.money - a.itemCost, count: a.instances, unit: "jobs",
-                 tend: tendHint(t), recipe: topRecipe(t), community: community(r, priceByName),
+                 tend: tendHint(t), recipe: topRecipe(t), record: t ? record(t.jobs.slice(-RECORD_JOBS), names) : null,
+                 community: community(r, priceByName),
                  your_share: r && r.payoutMax && recent.length ? Math.round(100 * median(recent) / r.payoutMax) / 100 : null });
     }
     for (const m of methods.values()) if (m.conversations)
@@ -465,7 +519,7 @@ else (function main() {
   }
 
   // ---------------- syncing your crime logs (new ones first, then history, gently) ----------------
-  const keep = ["crime_action", "nerve", "money_gained", "money_lost", "items_used", "items_added", "items_gained", "target", "method", "crime", "skill_level"];
+  const keep = ["crime_action", "nerve", "money_gained", "money_lost", "items_used", "items_added", "items_gained", "items_lost", "target", "method", "crime", "skill_level"];
   const slim = l => ({ id: String(l.id), ts: l.timestamp, type: (l.details || {}).id, title: (l.details || {}).title,
                        d: Object.fromEntries(keep.filter(k => l.data && l.data[k] != null).map(k => [k, l.data[k]])) });
   let syncing = false, syncNote = "", syncError = "", syncedThisVisit = false;
@@ -483,10 +537,11 @@ else (function main() {
     syncing = true;
     const beat = setInterval(() => set("lock", Date.now()), 5000);
     set("lock", Date.now());
-    // (v2: a full read once more, for what earlier versions skipped; see below)
-    const blank = { v: 2, newest: null, oldest: null, done: false };
+    // (v2: a full read once more, for what earlier versions skipped, see below; v3, 1.2.4: once more for the tools
+    // lost on critical fails, which earlier versions didn't keep. Logs are stored by id, so a re-read only adds that.)
+    const blank = { v: 3, newest: null, oldest: null, done: false };
     let st = memoryOnly && !syncedThisVisit ? { ...blank } : get("sync", blank);
-    if (st.v !== 2) st = { ...blank };
+    if (st.v !== 3) st = { ...blank };
     syncedThisVisit = true;
     try {
       syncError = "";
@@ -540,7 +595,7 @@ else (function main() {
     const cached = get("prices", { at: 0, byId: {} });
     if (Date.now() - cached.at < DAYMS) return cached;
     const ids = new Set();
-    for (const r of rows) for (const k of ["items_used", "items_added", "items_gained"]) for (const id of Object.keys((r.d || {})[k] || {})) if (/^\d+$/.test(id)) ids.add(id);
+    for (const r of rows) for (const k of ["items_used", "items_added", "items_gained", "items_lost"]) for (const id of Object.keys((r.d || {})[k] || {})) if (/^\d+$/.test(id)) ids.add(id);
     const fuels = ["Gasoline", "Kerosene", "Diesel", "Hydrogen Tank", "Methane Tank", "Oxygen Tank", "Magnesium Shavings", "Potassium Nitrate", "Thermite"];
     const byId = {};
     const list = [...ids];
@@ -676,7 +731,7 @@ else (function main() {
     if (key) {
       const forget = $("button", "ca-ghost", "Remove key and data");
       forget.onclick = async () => { if (!confirm("Remove your key and the crime logs stored in this browser?")) return;
-        set("key", ""); set("sync", { v: 2, newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
+        set("key", ""); set("sync", { v: 3, newest: null, oldest: null, done: false }); await idb.clear(); await recompute(); renderPanel(); };
       panel.append(forget);
       const st = get("sync", {});
       const status = syncError ? $("div", "ca-err", `Sync problem: ${syncError}`)
@@ -746,7 +801,19 @@ else (function main() {
       sec.append($("span", "", `\u00b7 pays ${short(c.min)}\u2013${short(c.max)}` + (c.per_nerve != null ? ` \u00b7 ~${short(c.per_nerve)}/nerve` : "")));
       pop.append(sec, dl(c.steps.map(([k, t]) => [k, noFT && /^(Ignite|Stoke)$/.test(k) ? t.replace(/flamethrower/ig, "Lighter (not the Flamethrower)") : t])));
     }
-    if (v.recipe || v.tend) { pop.append($("div", "ca-sec", "Your record")); pop.append(dl([["Winning recipe", v.recipe], ["Tending", v.tend]])); }
+    const rec = v.record;
+    if (rec) {  // how you ran it when it paid, step by step (lined up against the recipe above)
+      const of = n => `${n}/${rec.paid}`, q = x => Number.isInteger(x) ? String(x) : x.toFixed(1);
+      const list = (xs, out) => xs.map(x => `${x.item}${x.qty > 1 ? ` \u00d7${q(x.qty)}` : ""} ${x.jobs}/${out}`).join(" \u00b7 ");
+      const stoked = !rec.stoked ? "never" : [of(rec.stoked), rec.stokes > 1 ? `${q(rec.stokes)} times each` : "",
+        rec.stoke_min != null ? `first ~${q(rec.stoke_min)} min after lighting` : "",
+        rec.stoke_fuel.length ? `fed ${list(rec.stoke_fuel, rec.stoked)}` : "",
+        rec.tool_stokes ? `${rec.tool_stokes}/${rec.stoked} with a tool` : ""].filter(Boolean).join(" \u00b7 ");
+      const sec = $("div", "ca-sec", `Your record \u00b7 last ${rec.paid} payout${rec.paid === 1 ? "" : "s"}`);
+      sec.title = "From your logs. The Lighter and Flamethrower are never logged as used, so how a job was lit isn't known, and a stoke with nothing logged was done with one of them.";
+      pop.append(sec, dl([["Placed", list(rec.place, rec.paid) || "nothing logged"], ["Stoked", stoked],
+        ["Evidence", list(rec.evidence, rec.paid)], ["Dampened", rec.dampened ? of(rec.dampened) : ""]]));
+    } else if (v.recipe || v.tend) { pop.append($("div", "ca-sec", "Your record")); pop.append(dl([["Winning recipe", v.recipe], ["Tending", v.tend]])); }
     body.appendChild(pop);
     const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, ht = pop.offsetHeight;
     Object.assign(pop.style, { left: `${Math.min(Math.max(8, r.left), innerWidth - w - 8)}px`,

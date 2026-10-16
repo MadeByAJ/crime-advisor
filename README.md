@@ -51,6 +51,12 @@ Arson still works: each job gets a button with the community's payout range and 
 
 Each browser keeps its own copy, so a second computer downloads your history again.
 
+## What's new in 1.2.4
+
+- **A tool lost on a critical fail counts as a cost.** Forgery's Embosser and bootlegging's drives can be lost on a critical fail. They weren't counted, so a crime that keeps costing you tools could read as profitable when it isn't.
+- **Arson: your record, step by step.** A job's card shows how you ran it when it paid (its last 20 payouts): what you placed, how often you stoked, how long after lighting and with what, the evidence and any dampening, to set beside the community recipe. Fuel used to stoke was counted as placed before.
+- **One more read of your logs.** Earlier versions didn't keep the "items lost" part of a log, so 1.2.4 reads your crime logs from Torn once more. It loads in the background while Torn is open, like the first time.
+
 ## What's new in 1.2.0
 
 - **Disposal works for every job.** Only Broken Appliance and Firearm got a button before: the logs say "abandoning *some* general waste", and the script didn't match that to the page's General Waste.
@@ -60,7 +66,7 @@ Each browser keeps its own copy, so a second computer downloads your history aga
 - **Arson: no Flamethrower on accidental jobs (1.2.1).** When a job's requirements call for an accidental cause or insurance and the community recipe lights or stokes with the Flamethrower, its button shows a warning and the card swaps in a Lighter: the Flamethrower isn't accidental, so it fails the job.
 - **Graffiti by district.** Each district on the Graffiti page gets its own button.
 
-Your stored logs are re-read with the new rules, so nothing needs re-downloading: paste the new version over the old one.
+1.2.0 re-read your stored logs with the new rules, so nothing needed re-downloading.
 
 ## Updating
 
