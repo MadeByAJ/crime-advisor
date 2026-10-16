@@ -83,6 +83,11 @@ table.data tr:last-child td{border-bottom:0}
   font:600 13px var(--body);cursor:pointer}
 .chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;font:600 11px/1.6 var(--body);background:var(--surface-2);color:var(--muted);white-space:nowrap}
+/* a label that explains itself on a tap (phones have no hover) */
+button.pill.tip{border:0;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+button.pill.tip:hover,button.pill.tip[aria-expanded="true"]{color:var(--ink)}
+.tipbox{position:absolute;z-index:20;width:max-content;max-width:min(320px,calc(100vw - 16px));padding:10px 12px;border-radius:8px;
+  background:var(--ink);color:var(--bg);font-size:14px;line-height:1.45;box-shadow:0 6px 20px rgb(0 0 0 / .18);white-space:normal}
 .field{display:grid;gap:4px;font-size:14px;color:var(--muted)}
 .field input[type=password],.field input[type=text]{font:15px var(--mono);padding:9px 12px;border-radius:6px;border:1px solid var(--line);
   background:var(--bg);color:var(--ink);min-height:42px;width:100%;max-width:360px}

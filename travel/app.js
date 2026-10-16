@@ -16,6 +16,7 @@
     return s + (a >= 1e9 ? `$${(a / 1e9).toFixed(2)}b` : a >= 1e6 ? `$${(a / 1e6).toFixed(2)}m` : a >= 1e3 ? `$${(a / 1e3).toFixed(1)}k` : `$${Math.round(a)}`);
   };
   const m = n => `<span title="${money(n)}">${short(n)}</span>`;
+  const tip = (label, text) => `<button type="button" class="pill tip" data-tip="${esc(text)}" aria-expanded="false">${label}</button>`;
   const hours = h => h == null ? "–" : h >= 10 ? `${Math.round(h)}h` : `${Math.floor(h)}h${String(Math.round((h % 1) * 60)).padStart(2, "0")}`;
   const when = ts => new Date(ts * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   // trade partners: Torn's logs carry their id (written @id here); the name once looked up (Torn.players), else the id
@@ -63,8 +64,9 @@
         <td class="r">${i.sold ? i.sold.toLocaleString() : "–"}</td><td class="r">${i.sold_each != null ? m(i.sold_each) : "–"}</td>
         <td class="r ${i.margin_each > 0 ? "good" : i.margin_each < 0 ? "bad" : ""}">${i.margin_each != null ? m(i.margin_each) : "–"}</td>
         <td>${i.sells_to ? people(i.sells_to) : i.gives_to ? `${people(i.gives_to)} <span class="faint">(sent)</span>` : "–"}</td>
-        <td class="r"><b>${m(i.total)}</b>${i.kept_gain ? ` <span class="pill" title="Includes ${money(i.kept_gain)} on items kept for yourself">incl. kept</span>` : ""}</td>
-        <td>${i.pending ? `<span class="pill">${i.pending} waiting</span>` : i.kept ? `<span class="pill">${i.kept} kept</span>` : "–"}</td></tr>`).join("")
+        <td class="r"><b>${m(i.total)}</b>${i.kept_gain ? ` ${tip("incl. kept", `Includes ${money(i.kept_gain)} on units you kept: what they're worth at today's market price, minus what you paid abroad. That's what flying for them saved you over buying at home. It isn't cash, so it's left out of Earned at the top.`)}` : ""}</td>
+        <td>${i.pending ? tip(`${i.pending} waiting`, `${i.pending} not sold yet of an item you do sell. Counted at your last sale price (or today's market price, if that's higher).`)
+          : i.kept ? tip(`${i.kept} kept`, `${i.kept} bought abroad and never sold, traded or sent: usually ones you used yourself (the page can't tell used from still in your inventory). Valued at today's market price.`) : "–"}</td></tr>`).join("")
         || `<tr><td colspan="10" class="faint">Nothing bought abroad in this period.</td></tr>`}</tbody>`;
     $("#trips").innerHTML = `<thead><tr><th>Left</th><th>Destination</th><th class="r">Flying</th><th class="r">Stayed</th><th>Bought</th><th class="r">Spent</th><th class="r">Goods</th><th class="r">Mugs</th><th class="r">Total</th></tr></thead>
       <tbody>${r.trips.map(tr => `<tr><td>${when(tr.out)}</td><td>${esc(tr.country)}</td><td class="r">${hours(tr.flight_h)}</td><td class="r">${tr.stay_min != null ? `${tr.stay_min}m` : '<span class="faint">abroad</span>'}</td>
@@ -150,7 +152,25 @@
     showStart("Your key and data are gone from this browser.");
   }
 
+  // one explanation bubble at a time, under the label tapped; a tap elsewhere or Escape closes it
+  const bubble = Object.assign(document.createElement("div"), { className: "tipbox", hidden: true, role: "tooltip", id: "tipbox" });
+  document.body.append(bubble);
+  let tipFor = null;
+  function closeTip() { bubble.hidden = true; if (tipFor) tipFor.setAttribute("aria-expanded", "false"); tipFor = null; }
+  function openTip(btn) {
+    closeTip();
+    bubble.textContent = btn.dataset.tip; bubble.hidden = false;
+    btn.setAttribute("aria-expanded", "true"); btn.setAttribute("aria-describedby", "tipbox"); tipFor = btn;
+    const r = btn.getBoundingClientRect(), w = bubble.offsetWidth;
+    bubble.style.left = `${Math.max(8, Math.min(r.left + scrollX, scrollX + document.documentElement.clientWidth - w - 8))}px`;
+    bubble.style.top = `${r.bottom + scrollY + 6}px`;
+  }
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeTip(); });
+  addEventListener("resize", closeTip);
   document.addEventListener("click", e => {
+    const t = e.target.closest("[data-tip]");
+    if (t) { if (t === tipFor) closeTip(); else openTip(t); return; }
+    if (!e.target.closest("#tipbox")) closeTip();
     const d = e.target.closest("[data-days]");
     if (d) { days = Number(d.dataset.days); ls("tornbrain.travel.days", days); render(); }
     if (e.target.id === "again") sync();
