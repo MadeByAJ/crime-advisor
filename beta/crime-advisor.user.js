@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.12
+// @version      2.1.13
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -976,9 +976,9 @@ else (async function main() {
       .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
       .ca-btn{bottom:calc(12px + var(--ca-bottom,0px) + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 24px)}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
-      /* chips stay beside the name, compact (Torn's rows are one line high: a chip on a line of its own pushed the name
-         and the risk bar out of view, Aaron's iPhone); one that still wraps keeps its tier alone (fitChip) */
-      .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}
+      /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
+         the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
+      .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
     }
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
@@ -1845,7 +1845,7 @@ else (async function main() {
       Object.assign(b.dataset, { star: star ? "1" : "0", sig, best: String(best), nerve: String(nv), v: String(version), avg: v.avg_net || "" });
       if (star) val.append($("span", "ca-star", "\u2605"));  // (one star a row, in the chip: Torn shows a unique waiting now)
       if (low) val.append($("span", "ca-bolt", "\u26a1"));
-      val.append(text);
+      if (!phone) val.append(text);  // (a phone: the grade alone, Aaron 2026-10-17; the number is in the card and the label)
       b.append($("span", "ca-t", TILE[tier]), val);
       const avg = values.overall;
       b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
@@ -1860,7 +1860,7 @@ else (async function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
-      if (picker || tight) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
+      if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
       if (v.methods) markMethods(row, v);
     }
