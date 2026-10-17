@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.14
+// @version      2.1.15
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2228,7 +2228,8 @@ else (async function main() {
       tip = `Nothing here beats your average now: ${wait.verb} ${wait.name} (${short(wait.per_nerve)}/nerve)`;
     } else if (elsewhere.length) {
       const [t, x] = elsewhere[0], w = x.ideal && x.ideal.per_nerve >= (x.per_nerve || 0) ? x.ideal : null;
-      line = `\u2192 ${crimes[t] || t} \u00b7 ${w ? w.name : x.name}`;
+      // (one to wait for reads as the wait, as on its own page: "Wait for Cyclist", not "Pickpocketing - Cyclist")
+      line = w ? `\u23f3 ${w.verb[0].toUpperCase()}${w.verb.slice(1)} ${w.name}` : `\u2192 ${crimes[t] || t} \u00b7 ${x.name}`;
       tip = `${k ? "Better elsewhere" : "Your best crime"}: ${crimes[t] || t}, ${w ? `${w.verb} ${w.name}` : x.name} (${short(w ? w.per_nerve : x.per_nerve)}/nerve)`;
     } else if (weak) {
       tier = weak.tier; line = weak.name; muted = true;
@@ -2304,9 +2305,16 @@ else (async function main() {
           for (let m = el; m; m = m === n ? null : m.parentElement) {
             const r = m.getBoundingClientRect();
             if (r.height > innerHeight * 0.25 || r.bottom < innerHeight - 8) break;
-            top = Math.min(top, r.top); left = Math.min(left, r.left);
+            top = Math.min(top, r.top);
           }
           if (top < innerHeight) h = Math.max(h, innerHeight - top);
+          // where the bar's own pieces start (its box can span the screen while its icons sit on the right): the
+          // leftmost small box in it at the bottom of the screen
+          for (const c of n.querySelectorAll("*")) {
+            const r = c.getBoundingClientRect();
+            if (r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight) left = Math.min(left, r.left);
+          }
+          if (left === innerWidth) left = Math.min(left, n.getBoundingClientRect().left);  // (a bar with no pieces of its own)
           break;
         }
       }
