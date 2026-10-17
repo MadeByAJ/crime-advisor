@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.0
+// @version      2.1.1
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
-// @updateURL    https://tornbrain.com/crime-advisor.user.js
-// @downloadURL  https://tornbrain.com/crime-advisor.user.js
+// @updateURL    https://tornbrain.com/beta/crime-advisor.user.js
+// @downloadURL  https://tornbrain.com/beta/crime-advisor.user.js
 // @match        https://www.torn.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -973,8 +973,8 @@ else (async function main() {
       font:12px/1.45 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.5);box-sizing:border-box}
     /* a phone (Torn PDA, a mobile browser): the panel is a bottom sheet, the button clear of the screen's edge */
     @media (max-width:600px){
-      .ca-panel{left:0;right:0;bottom:0;width:auto;max-height:82vh;border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
-      .ca-btn{bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 24px)}
+      .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+      .ca-btn{bottom:calc(12px + var(--ca-bottom,0px) + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 24px)}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
     }
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
@@ -1071,7 +1071,7 @@ else (async function main() {
   const btn = $("button", "ca-btn", "Crime Advisor");
   btn.type = "button";
   if (onCrimes) body.appendChild(btn);
-  btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
+  btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
   setInterval(async () => {  // while the panel is open: another tab's progress shows up here too
     if (!panel) return;
     const typing = panel.querySelector("input");
@@ -1129,20 +1129,23 @@ else (async function main() {
     const all = Object.fromEntries(summary.all.crimes.map(c => [c.id, c])), month = Object.fromEntries(summary.month.crimes.map(c => [c.id, c]));
     if (!avg) avg = summary.all.total.per_nerve || 0;
     const skill = summary.all.skill || {}, seenUq = get("uq", {});
-    const earn = [], up = [], uq = [], done = [];
+    const earn = [], up = [], uq = [], done = [], histDone = !!get("sync", {}).done;
+    let waiting = 0;
     for (const c of summary.all.crimes) {
       if (!c.id || !(c.nerve > 0) || c.per_nerve == null) continue;
       const k = CA.slug(c.name), mo = month[c.id];
       const recent = p === "30" && mo && mo.nerve > 0 && mo.per_nerve != null;
       const pn = p === "all" || recent ? (recent ? mo.per_nerve : c.per_nerve) : null;  // (30 days: nothing done, no number)
       const s = skill[k] != null ? skill[k] : null;
-      const total = seenUq[k] ? seenUq[k][1] : UQ_TOTAL[c.id] || 0, found = seenUq[k] ? seenUq[k][0] : Math.min(c.uniques || 0, total);
+      // (uniques from your logs only once all your history is in: half-loaded, every crime looks unfound)
+      const total = seenUq[k] ? seenUq[k][1] : histDone ? UQ_TOTAL[c.id] || 0 : 0, found = seenUq[k] ? seenUq[k][0] : Math.min(c.uniques || 0, total);
       const row = { c, k, pn, s, left: Math.max(0, total - found), total };
       const tip = `${c.name}: ${short(c.per_nerve)}/nerve all time \u00b7 `
         + (mo && mo.nerve ? `${short(mo.per_nerve)}/nerve over 30 days (${mo.nerve.toLocaleString()} nerve)` : "none in the last 30 days")
         + (s != null ? ` \u00b7 skill ${s}/100` : "") + (total ? ` \u00b7 uniques ${total - row.left}/${total}` : "");
       row.tip = tip;
       if (pn != null && pn > 0 && pn >= avg) earn.push(row);
+      else if (s == null && !histDone) waiting++;  // (its skill logs are further back: not loaded yet)
       else if (s == null || s < 100) up.push(row);
       else if (row.left > 0) uq.push(row);
       else done.push(row);
@@ -1234,6 +1237,8 @@ else (async function main() {
         right.className = "ca-bv ca-uqv";
         right.append(`\u2605${r.left} left`);
       });
+
+    if (waiting) box.append($("div", "ca-muted ca-none", `+${waiting} more once your history has loaded`));
 
     // Done: one line
     if (done.length) {
@@ -2163,8 +2168,28 @@ else (async function main() {
     }
     drawBest(tab ? k : null);
     glance();
+    bottomClear();
   }
   const schedule = () => { if (!looking) looking = setTimeout(look, LOW ? 400 : 150); };
+  // On a phone Torn's chat bar is fixed across the bottom of the screen (Aaron's iPhone in Torn PDA, 2026-10-17: it
+  // covered the bottom of the panel). The button and the panel sit just above whatever Torn has fixed down there.
+  var clearAt = 0;  // (var: the panel can open, on its own, before this line has run)
+  function bottomClear() {
+    if (Date.now() - clearAt < 2000) return;
+    clearAt = Date.now();
+    let h = 0;
+    for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
+      for (const el of document.elementsFromPoint(x, innerHeight - 4)) {
+        if (el.closest(OURS) || el === document.documentElement || el === body) continue;
+        for (let n = el; n && n !== body; n = n.parentElement) {
+          const pos = getComputedStyle(n).position;
+          if (pos === "fixed" || pos === "sticky") { h = Math.max(h, innerHeight - n.getBoundingClientRect().top); break; }
+        }
+      }
+    }
+    document.documentElement.style.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
+  }
+  addEventListener("resize", () => { clearAt = 0; bottomClear(); });
   const lastSeen = {};
   function seenTick() {
     if (current() !== tab) { schedule(); return; }
