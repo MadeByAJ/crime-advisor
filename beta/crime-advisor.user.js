@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.18
+// @version      2.2.0
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -13,6 +13,7 @@
 // @grant        GM_setValue
 // @connect      api.torn.com
 // @connect      balaclava.app
+// @connect      api.tornbrain.com
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -692,7 +693,7 @@ else (async function main() {
   async function fetchText(opts) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 30000);
     try {
-      const r = await fetch(opts.url, { method: opts.method || "GET", headers: opts.headers, signal: ctl.signal, cache: "no-store" });
+      const r = await fetch(opts.url, { method: opts.method || "GET", headers: opts.headers, body: opts.data, signal: ctl.signal, cache: "no-store" });
       return { status: r.status, responseText: await r.text() };
     } catch (e) { throw new Error(e.name === "AbortError" ? "timed out" : "network error"); }
     finally { clearTimeout(t); }
@@ -902,7 +903,7 @@ else (async function main() {
   const olderThan = t => { let lo = 0, hi = storedTs.length; while (lo < hi) { const m = (lo + hi) >> 1; if (storedTs[m] < t) lo = m + 1; else hi = m; } return lo; };
   async function recompute() {
     const t0 = performance.now();
-    try { return await recomputeNow(); } finally { rcMs = performance.now() - t0; }
+    try { return await recomputeNow(); } finally { rcMs = performance.now() - t0; commShare(false); commFetch(false); }
   }
   async function recomputeNow() {
     const rows = get("key", "") ? await idb.all().catch(() => []) : [];
@@ -985,6 +986,7 @@ else (async function main() {
       .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
       .ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
+    .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
     .ca-prog{height:3px;border-radius:2px;background:#232321;overflow:hidden}.ca-prog span{display:block;height:100%;background:#2a78d6;transition:width .4s}
@@ -1289,7 +1291,7 @@ else (async function main() {
     cb.type = "checkbox"; cb.checked = !!get("autoOpen", false);
     cb.onchange = () => set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
-    f.append(auto, aboutBrowser());
+    f.append(auto, commUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
   }
@@ -1310,6 +1312,7 @@ else (async function main() {
       ["Sync", syncError ? `problem: ${syncError}` : syncing ? syncNote || "running" : "idle"],
       ["This page", pageDiag()],
       ["Bottom bar", barSeen],
+      ["Community", commState().token ? `on${commState().at ? `, shared ${new Date(commState().at).toLocaleDateString()}` : ""}` : "off"],
       ["Screen", `${innerWidth}\u00d7${innerHeight}, ${matchMedia("(hover: none)").matches ? "touch" : "mouse"}, ${LOW ? "low-end device" : "normal device"}`],
       ["Browser", navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)],
     ];
@@ -1380,6 +1383,105 @@ else (async function main() {
     if (!t || t.closest("a, button, input, label, summary") || !t.title) { if (tipEl && !e.target.closest(".ca-tip")) { tipEl.remove(); tipEl = null; } return; }
     showTip(t, t.title);
   }, true);
+
+  // ---------------- community numbers (opt-in): what players like you earn, from tornbrain.com ----------------
+  // Off unless you turn it on. Joining sends your key once to tornbrain.com, which asks Torn whose it is, keeps a
+  // scrambled id (so you count once) and drops the key. What's shared, once your whole history is in and at most
+  // daily: per crime option, your tries (rounded down), success rate, $/nerve and skill band. No logs. A number shows
+  // only when 5 or more players are behind it. Turning it off deletes everything about you there.
+  const COMMUNITY = "https://api.tornbrain.com", KIND_OK = /^[A-Za-z0-9 '&().,:/+\-]{1,60}$/;
+  const commState = () => get("community", {});  // { token, at: last shared, err }
+  async function commCall(method, path, body) {
+    const c = commState(), headers = { "Content-Type": "application/json" };
+    if (c.token) headers.Authorization = `Bearer ${c.token}`;
+    const r = await http({ method, url: COMMUNITY + path, headers, data: body ? JSON.stringify(body) : undefined });
+    let j = {};
+    try { j = JSON.parse(r.responseText || "{}"); } catch (e) { /* not JSON */ }
+    if (r.status >= 400) { const e = new Error(j.error || `HTTP ${r.status}`); e.status = r.status; throw e; }
+    return j;
+  }
+  const bandOf = s => s == null ? null : s >= 100 ? 4 : Math.max(0, Math.min(3, Math.floor(s / 25)));
+  async function commJoin() {
+    const j = await commCall("POST", "/v1/join", { key: get("key", "") });
+    set("community", { token: j.token, at: 0, err: "" });
+    await commShare(true);
+  }
+  async function commLeave() {
+    try { await commCall("POST", "/v1/leave", {}); } catch (e) { /* already gone */ }
+    set("community", {}); set("communityNumbers", null);
+  }
+  async function commShare(force) {
+    const c = commState();
+    if (!c.token || !summary || !get("sync", {}).done) return;
+    if (!force && Date.now() - (c.at || 0) < 86400000) return;
+    const skill = summary.all.skill || {};
+    const rows = summary.all.kinds.filter(k => k.crime_id && k.count >= 10 && Number.isFinite(k.per_nerve) && KIND_OK.test(k.kind))
+      .slice(0, 400).map(k => ({ c: k.crime_id, k: k.kind, n: k.count, p: Math.round(k.per_nerve),
+        s: k.outcomes && Number.isFinite(k.outcomes.success) ? k.outcomes.success : null,
+        b: bandOf(skill[CA.slug(CA.NAMES[k.crime_id] || "")]) }));
+    try {
+      await commCall("POST", "/v1/contribute", { v: 1, rows });
+      set("community", { ...commState(), at: Date.now(), err: "" });
+      await commFetch(true);
+    } catch (e) {
+      if (e.status === 401) set("community", {});
+      else set("community", { ...commState(), err: e.message });
+    }
+    if (panel) renderPanel();
+  }
+  async function commFetch(force) {
+    const cur = get("communityNumbers", null);
+    if (!commState().token || (!force && cur && Date.now() - cur.got < 6 * 3600000)) return;
+    try { set("communityNumbers", { got: Date.now(), ...(await commCall("GET", "/v1/numbers")) }); }
+    catch (e) { if (e.status === 401) set("community", {}); }
+  }
+  // an option's community number: players at your skill where there are enough of them, else everyone's
+  function commFor(v) {
+    const n = get("communityNumbers", null), r = n && (n.rows || []).find(x => x.c === v.crime_id && x.k === v.kind);
+    if (!r) return null;
+    const mine = bandOf(((values && values.crime_skill) || {})[CA.slug(CA.NAMES[v.crime_id] || "")]);
+    const b = mine != null && r.bands && r.bands[String(mine)];
+    return b ? { p50: b.p50, n: b.n, skill: true, row: r } : { p50: r.p50, n: r.n, skill: false, row: r };
+  }
+  // the footer's switch, and what it shares before you turn it on
+  let commAsk = false, commBusy = false;
+  function commUi() {
+    const w = $("div", "ca-comm"), c = commState(), on = !!c.token;
+    const lab = $("label", "ca-auto"), cb = $("input");
+    cb.type = "checkbox"; cb.checked = on || commAsk;
+    cb.disabled = commBusy;
+    cb.onchange = async () => {
+      if (cb.checked && !on) { commAsk = true; renderPanel(); return; }
+      if (!cb.checked && commAsk) { commAsk = false; renderPanel(); return; }
+      if (!cb.checked && on) { commBusy = true; renderPanel(); await commLeave(); commBusy = false; renderPanel(); }
+    };
+    lab.append(cb, "Share anonymous crime numbers, see the community's");
+    w.append(lab);
+    if (commAsk && !on) {
+      const box = $("div", "ca-commask");
+      box.append($("div", "", "Shared with tornbrain.com, per crime option: your tries (rounded down), success rate, $/nerve and skill band. No logs."),
+        $("div", "", "Your key goes there once so it can ask Torn who you are; it keeps a scrambled id and drops the key."),
+        $("div", "", "Numbers show once 5 or more players share. Turn this off any time: everything about you is deleted."));
+      const go = $("button", "ca-pbtn", "Join"), no = $("button", "ca-link", "Not now");
+      go.type = no.type = "button";
+      go.onclick = async e => {
+        e.stopPropagation(); commBusy = true; renderPanel();
+        try { await commJoin(); commAsk = false; } catch (err) { set("community", { err: err.message }); }
+        commBusy = false; renderPanel();
+      };
+      no.onclick = e => { e.stopPropagation(); commAsk = false; renderPanel(); };
+      const row = $("div", "ca-krow"); row.append(go, no);
+      box.append(row);
+      if (!get("sync", {}).done) box.append($("div", "ca-muted", "Your numbers go once your history has finished loading."));
+      w.append(box);
+    }
+    const n = get("communityNumbers", null);
+    const status = commBusy ? "working\u2026" : c.err ? `couldn't reach tornbrain.com: ${c.err}`
+      : on ? (c.at ? `shared ${new Date(c.at).toLocaleDateString()}` : "shares once your history has loaded") +
+             (n && n.players ? ` \u00b7 ${n.players} players` : n ? " \u00b7 under 5 players so far" : "") : "";
+    if (status) w.append($("div", c.err ? "ca-err ca-commst" : "ca-muted ca-commst", status));
+    return w;
+  }
 
   // the key: make one on Torn (the link pre-fills a Custom key: logs + item prices), paste it, save
   function keyForm(key) {
@@ -2030,6 +2132,9 @@ else (async function main() {
     dig.hidden = true;
     more.onclick = e => { e.stopPropagation(); dig.hidden = !dig.hidden; more.textContent = dig.hidden ? "More \u25be" : "Less \u25b4"; place(); };
     ft.append(more);
+    const cm = commFor(v);  // (opt-in community numbers: players at your skill where there are 5+, else everyone's)
+    if (cm) pill("", `Community ${short(cm.p50)}/n`, `${cm.skill ? "Players at your skill" : "Players"}: ${short(cm.p50)}/nerve in the middle` +
+      `; the middle half of all players ${short(cm.row.p25)}\u2013${short(cm.row.p75)} (${cm.n} players, from tornbrain.com)`);
     pop.append(ft, dig);
     // Dig: folded sections, a one-line summary each
     const sec = (title, sub, kids, open, tip) => {
