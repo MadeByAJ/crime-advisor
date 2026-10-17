@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.7
+// @version      2.1.8
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2246,7 +2246,10 @@ else (async function main() {
         if (el.closest(OURS) || el === document.documentElement || el === body) continue;
         for (let n = el; n && n !== body; n = n.parentElement) {
           const pos = getComputedStyle(n).position;
-          if (pos === "fixed" || pos === "sticky") {  // (a bar, not a tall overlay: one lifted the button mid-screen)
+          // (fixed bars only, not tall overlays; and not sticky ones, which reach the bottom edge only when you've
+          // scrolled to the end: the button stayed lifted mid-screen after scrolling back up)
+          if (pos === "fixed" || pos === "sticky") {
+            if (pos === "sticky") break;
             const r = n.getBoundingClientRect();
             if (r.height <= innerHeight * 0.25 && r.bottom >= innerHeight - 8) h = Math.max(h, innerHeight - r.top);
             break;
@@ -2257,6 +2260,8 @@ else (async function main() {
     document.documentElement.style.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
   }
   addEventListener("resize", () => { clearAt = 0; bottomClear(); });
+  let scrollT = null;  // (and again once a scroll settles)
+  addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(() => { clearAt = 0; bottomClear(); }, 250); }, { passive: true });
   const lastSeen = {};
   function seenTick() {
     if (current() !== tab) { schedule(); return; }
