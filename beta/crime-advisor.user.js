@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.6
+// @version      2.1.7
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1421,14 +1421,18 @@ else (async function main() {
   // Where the crime's options are: the crimes app. On a phone it didn't hold the job list (Aaron's iPhone in Torn PDA,
   // Disposal: none of the names on show were in it), so when a crime's options are on the page but not in there, the
   // search widens: Torn's content area, then the whole page.
-  let rootWide = 0, widenAt = 0;
+  let rootWide = Math.min(2, +get("rootWide", 0) || 0), widenAt = 0;
   const crimeRoot = () => (rootWide < 1 && document.querySelector("[class*='crimes-app'], #react-root, .content-wrapper"))
     || (rootWide < 2 && document.querySelector(".content-wrapper")) || body;
   function widenRoot(k) {
     if (rootWide >= 2 || onPage.length || !values || !values.tabs || !(values.tabs[k] || []).length) return;
     const names = values.tabs[k].flatMap(r => r.find || [r.kind]).map(f => String(f).toLowerCase());
-    const inRoot = (crimeRoot().innerText || "").toLowerCase(), all = (body.innerText || "").toLowerCase();
-    if (!names.some(f => inRoot.includes(f)) && names.some(f => all.includes(f))) { rootWide++; schedule(); }
+    const has = el => { const t = ((el && el.innerText) || "").toLowerCase(); return names.some(f => t.includes(f)); };
+    if (has(crimeRoot()) || !has(body)) return;
+    // straight to the first that holds them, and remembered on this device (the phone took a while, a step at a time)
+    rootWide = has(document.querySelector(".content-wrapper")) ? 1 : 2;
+    set("rootWide", rootWide);
+    schedule();
   }
   let tab = null, since = 0;
 
@@ -1574,7 +1578,8 @@ else (async function main() {
       clip = clip.parentElement;
     }
     const edge = clip && clip !== body ? clip.getBoundingClientRect().right : innerWidth;
-    b.classList.toggle("mini", b.getBoundingClientRect().right > edge - 2);
+    // past the list's edge, or squeezed by the row (Disposal on a phone: "C $26..." between the name and the icons)
+    b.classList.toggle("mini", b.getBoundingClientRect().right > edge - 2 || b.scrollWidth > b.clientWidth + 1);
   }
   // ---- the chip on each option (Glance): a tier and one number. The tier compares it with your average $/nerve
   // across all crimes (values.overall); S is also the best of the options on show.
@@ -2241,7 +2246,11 @@ else (async function main() {
         if (el.closest(OURS) || el === document.documentElement || el === body) continue;
         for (let n = el; n && n !== body; n = n.parentElement) {
           const pos = getComputedStyle(n).position;
-          if (pos === "fixed" || pos === "sticky") { h = Math.max(h, innerHeight - n.getBoundingClientRect().top); break; }
+          if (pos === "fixed" || pos === "sticky") {  // (a bar, not a tall overlay: one lifted the button mid-screen)
+            const r = n.getBoundingClientRect();
+            if (r.height <= innerHeight * 0.25 && r.bottom >= innerHeight - 8) h = Math.max(h, innerHeight - r.top);
+            break;
+          }
         }
       }
     }
