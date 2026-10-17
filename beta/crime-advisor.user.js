@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.8
+// @version      2.1.9
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2244,16 +2244,21 @@ else (async function main() {
     for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
       for (const el of document.elementsFromPoint(x, innerHeight - 4)) {
         if (el.closest(OURS) || el === document.documentElement || el === body) continue;
+        // A bar is fixed or sticky AND pinned to the bottom (its CSS bottom set): Torn's chat bar is sticky. Something
+        // pinned to the top only reaches the bottom edge at the end of the page (it left the button mid-screen), and
+        // a tall overlay isn't a bar: then the bar is the biggest short box from the tapped spot up that hugs the bottom.
         for (let n = el; n && n !== body; n = n.parentElement) {
-          const pos = getComputedStyle(n).position;
-          // (fixed bars only, not tall overlays; and not sticky ones, which reach the bottom edge only when you've
-          // scrolled to the end: the button stayed lifted mid-screen after scrolling back up)
-          if (pos === "fixed" || pos === "sticky") {
-            if (pos === "sticky") break;
-            const r = n.getBoundingClientRect();
-            if (r.height <= innerHeight * 0.25 && r.bottom >= innerHeight - 8) h = Math.max(h, innerHeight - r.top);
-            break;
+          const cs = getComputedStyle(n);
+          if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+          if (cs.bottom === "auto") break;
+          let top = innerHeight;
+          for (let m = el; m; m = m === n ? null : m.parentElement) {
+            const r = m.getBoundingClientRect();
+            if (r.height > innerHeight * 0.25 || r.bottom < innerHeight - 8) break;
+            top = Math.min(top, r.top);
           }
+          if (top < innerHeight) h = Math.max(h, innerHeight - top);
+          break;
         }
       }
     }
