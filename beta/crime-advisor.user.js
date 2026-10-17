@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.17
+// @version      2.1.18
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -983,6 +983,7 @@ else (async function main() {
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
       .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
+      .ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
@@ -1656,6 +1657,16 @@ else (async function main() {
   // Burglary's "Any Industrial" (a random target of that kind, 3 nerve to scout; a type of your choice is 9): the
   // types listed with it in Torn's menu, blended by how often you've burgled each.
   const chipV = new WeakMap();
+  // A phone's pickers (Aaron, 2026-10-17: tapping an option opened the chip's card instead of choosing it): the chip
+  // lets taps through to Torn's option and, in an open list, sits at the option's right edge, clear of the name
+  function pickRight(b, host) {
+    if (!matchMedia("(max-width:600px)").matches) return;
+    b.classList.add("pick");
+    const opt = host.closest("li, [role='option']");
+    if (!opt) return;
+    if (getComputedStyle(opt).position === "static") opt.style.position = "relative";
+    b.classList.add("pick-r");
+  }
   function anyChips(root, k) {
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = w.nextNode(); n; n = w.nextNode()) {
@@ -1676,6 +1687,7 @@ else (async function main() {
       b.append($("span", "ca-t", TILE[tier]), $("span", "ca-v", matchMedia("(max-width:600px)").matches ? "" : `${short(pn)}/n`));
       b.title = `${t}: a random target of this kind (${CA.SCOUT_ANY} nerve to scout). The ${vs.length} types listed with it, blended by your burgles of each: ${short(pn)}/nerve`;
       host.appendChild(b);
+      pickRight(b, host);
     }
   }
   // Bootlegging: which genre to copy next. Buyers want genres in fixed proportions (community guides, 2023-24):
@@ -1867,6 +1879,7 @@ else (async function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
+      if (picker) pickRight(b, host);
       if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
       if (v.methods) markMethods(row, v);
