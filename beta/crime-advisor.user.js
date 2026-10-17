@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.3
+// @version      2.1.4
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1299,9 +1299,35 @@ else (async function main() {
       ["Logs", `${summary ? summary.logs.toLocaleString() : "?"}${st.done ? ", all history" : ", history loading"}`],
       ["Last request", lastNet ? `${lastNet.host} by ${lastNet.via}: ${lastNet.ok ? `HTTP ${lastNet.status}` : lastNet.err}, ${ago(lastNet.at)}` : "none yet"],
       ["Sync", syncError ? `problem: ${syncError}` : syncing ? syncNote || "running" : "idle"],
+      ["This page", pageDiag()],
       ["Screen", `${innerWidth}\u00d7${innerHeight}, ${matchMedia("(hover: none)").matches ? "touch" : "mouse"}, ${LOW ? "low-end device" : "normal device"}`],
       ["Browser", navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)],
     ];
+  }
+  // On a crime page: the options it knows for this crime, how many of their names it found on the page, the chips on
+  // it; and (copied only) how the first name it found sits in Torn's page: tag and class names, nothing personal
+  function pageDiag() {
+    if (!tab) return "the Crimes hub";
+    const k = tabKey(tab), rows = (values && values.tabs && values.tabs[k]) || [], text = (crimeRoot().innerText || "").toLowerCase();
+    const found = rows.filter(r => (r.find || [r.kind]).some(f => text.includes(String(f).toLowerCase())));
+    return `${k}: ${rows.length} options known, ${found.length} named on the page, ${document.querySelectorAll(".ca-chip").length} chips`;
+  }
+  function pageOutline() {
+    if (!tab) return "";
+    const k = tabKey(tab), rows = (values && values.tabs && values.tabs[k]) || [];
+    const names = rows.flatMap(r => r.find || [r.kind]).map(f => String(f).toLowerCase());
+    const w = document.createTreeWalker(crimeRoot(), NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      const t = n.nodeValue.trim().toLowerCase();
+      if (t.length < 3 || !names.includes(t) || n.parentElement.closest(OURS)) continue;
+      const chain = [];
+      for (let e = n.parentElement, i = 0; e && i < 7; e = e.parentElement, i++) {
+        const cls = typeof e.className === "string" && e.className.trim() ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : "";
+        chain.push(e.tagName.toLowerCase() + cls);
+      }
+      return `"${n.nodeValue.trim()}" in ${chain.join(" < ")}`;
+    }
+    return "no option name found as a whole text";
   }
   function aboutBrowser() {
     const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
@@ -1313,7 +1339,7 @@ else (async function main() {
     copy.type = "button";
     copy.onclick = e => {
       e.stopPropagation();
-      const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
+      const outline = pageOutline(), text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "");
       const done = () => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy for a bug report"; }, 2000); };
       const pdaCopy = PDA && window.flutter_inappwebview && window.flutter_inappwebview.callHandler;  // (PDA's own: the webview's can fail)
       try { (pdaCopy ? window.flutter_inappwebview.callHandler("copyToClipboard", text) : navigator.clipboard.writeText(text)).then(done, () => { copy.textContent = "Couldn't copy: select the lines above"; }); }
