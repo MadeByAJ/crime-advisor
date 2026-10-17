@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.16
+// @version      2.1.17
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1672,7 +1672,8 @@ else (async function main() {
       b?.remove();
       b = $("span", `ca-badge ca-hud ca-any ${tier}`);
       b.dataset.sig = sig;
-      b.append($("span", "ca-t", TILE[tier]), $("span", "ca-v", `${short(pn)}/n`));
+      // (a phone: the grade alone, as every chip there; "Any Industrial A $3.4k" ran off the scout menu's edge)
+      b.append($("span", "ca-t", TILE[tier]), $("span", "ca-v", matchMedia("(max-width:600px)").matches ? "" : `${short(pn)}/n`));
       b.title = `${t}: a random target of this kind (${CA.SCOUT_ANY} nerve to scout). The ${vs.length} types listed with it, blended by your burgles of each: ${short(pn)}/nerve`;
       host.appendChild(b);
     }
@@ -2225,12 +2226,12 @@ else (async function main() {
       const x = here[0]; tier = x.tier; line = x.name;
       tip = `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
     } else if (wait) {
-      line = `\u23f3 ${wait.verb[0].toUpperCase()}${wait.verb.slice(1)} ${wait.name}`;
+      line = `\u23f3 ${wait.name}`;  // (the hourglass says wait or scout: "Scout for Foundry" didn't fit beside the chat bar)
       tip = `Nothing here beats your average now: ${wait.verb} ${wait.name} (${short(wait.per_nerve)}/nerve)`;
     } else if (elsewhere.length) {
       const [t, x] = elsewhere[0], w = x.ideal && x.ideal.per_nerve >= (x.per_nerve || 0) ? x.ideal : null;
       // (one to wait for reads as the wait, as on its own page: "Wait for Cyclist", not "Pickpocketing - Cyclist")
-      line = w ? `\u23f3 ${w.verb[0].toUpperCase()}${w.verb.slice(1)} ${w.name}` : `\u2192 ${crimes[t] || t} \u00b7 ${x.name}`;
+      line = w ? `\u23f3 ${w.name}` : `\u2192 ${crimes[t] || t}`;  // (the crime's own page shows which job)
       tip = `${k ? "Better elsewhere" : "Your best crime"}: ${crimes[t] || t}, ${w ? `${w.verb} ${w.name}` : x.name} (${short(w ? w.per_nerve : x.per_nerve)}/nerve)`;
     } else if (weak) {
       tier = weak.tier; line = weak.name; muted = true;
