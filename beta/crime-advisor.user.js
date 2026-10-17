@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.1
+// @version      2.1.2
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1012,7 +1012,7 @@ else (async function main() {
     .ca-hud.X{background:#6b2020;color:#ffd6d6}.ca-hud.X .ca-t{background:#e5534b;color:#fff}
     .ca-hud.Q{background:#232321;color:#a9a89f;outline:1px dashed #55554f;outline-offset:-1px}.ca-hud.Q .ca-t{background:transparent;color:#c3c2b7}
     .ca-hud.W{background:#3a2f12;color:#ffe9a8}.ca-hud.W .ca-t{background:#5a4712;color:#ffe9a8}
-    .ca-hud.step{margin-left:10px}.ca-hud.tight .ca-v{padding:0 6px 0 4px;gap:2px}.ca-hud.tight .ca-t{min-width:16px;padding:0 4px}
+    .ca-hud.mini .ca-v{display:none}.ca-hud.step{margin-left:10px}.ca-hud.tight .ca-v{padding:0 6px 0 4px;gap:2px}.ca-hud.tight .ca-t{min-width:16px;padding:0 4px}
     .ca-badge.ca-oval{align-self:center;margin-left:10px;cursor:help;min-height:24px;font-size:12px}
     .ca-hud .ca-lbl{display:flex;align-items:center;padding:0 7px;font:700 9px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;background:rgba(0,0,0,.28)}
     .ca-hud:hover{filter:brightness(1.15)}.ca-hud[aria-expanded="true"]{box-shadow:0 0 0 2px #9cc8ff}
@@ -1521,6 +1521,19 @@ else (async function main() {
     }
   }
 
+  // A phone's narrow picker can push a chip past its edge (Aaron's iPhone, Forgery's projects: "Ordination Certificate
+  // C $2.4..." cut off): then the chip keeps its tier alone; the number is in its label and its card.
+  function fitChip(b) {
+    if (!b.isConnected) return;
+    let clip = b.parentElement;
+    while (clip && clip !== body) {
+      const cs = getComputedStyle(clip);
+      if (cs.overflowX !== "visible" || cs.overflow !== "visible") break;
+      clip = clip.parentElement;
+    }
+    const edge = clip && clip !== body ? clip.getBoundingClientRect().right : innerWidth;
+    b.classList.toggle("mini", b.getBoundingClientRect().right > edge - 2);
+  }
   // ---- the chip on each option (Glance): a tier and one number. The tier compares it with your average $/nerve
   // across all crimes (values.overall); S is also the best of the options on show.
   const TILE = { S: "S", A: "A", B: "B", C: "C", X: "\u2715", Q: "?", W: "\u26a0", G: "\u2713" };
@@ -1787,6 +1800,7 @@ else (async function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
+      if (picker || tight) requestAnimationFrame(() => fitChip(b));
       chipV.set(b, v);
       if (v.methods) markMethods(row, v);
     }
