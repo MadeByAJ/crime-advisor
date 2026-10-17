@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.13
+// @version      2.1.14
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -925,8 +925,11 @@ else (async function main() {
   // Q little history, W careful, G ready to collect. Green go, amber careful, red loses, gold unique.
   const style = $("style");
   style.textContent = `
-    .ca-btn{position:fixed;left:12px;bottom:12px;z-index:99998;display:flex;align-items:center;gap:4px;max-width:min(340px,80vw);background:#1a1a19;color:#9cc8ff;
-      border:1px solid #3a3a37;border-radius:18px;padding:6px 12px;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden}
+    .ca-btn{position:fixed;left:12px;bottom:12px;z-index:99998;display:grid;justify-items:start;gap:1px;max-width:min(340px,80vw);background:#1a1a19;color:#9cc8ff;
+      border:1px solid #3a3a37;border-radius:12px;padding:6px 12px 7px;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-align:left}
+    .ca-btn .ca-bt{font:700 9.5px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9cc8ff}
+    .ca-btn .ca-ba{display:flex;align-items:center;gap:6px;max-width:100%;min-width:0;overflow:hidden;font:600 13px system-ui,sans-serif;color:#f3f3f1}
+    .ca-btn .ca-ba.muted{color:#a9a89f}
     .ca-btn .ca-bn{overflow:hidden;text-overflow:ellipsis;color:#f3f3f1}.ca-btn .ca-tier{width:18px;height:18px;font-size:11px;border-radius:5px}
     .ca-panel{position:fixed;left:12px;bottom:52px;z-index:99999;width:min(360px,92vw);max-height:70vh;overflow:auto;background:#1a1a19;color:#f3f3f1;box-sizing:border-box;
       border:1px solid #3a3a37;border-radius:10px;padding:12px 14px;font:13px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.55)}
@@ -974,7 +977,7 @@ else (async function main() {
     /* a phone (Torn PDA, a mobile browser): the panel is a bottom sheet, the button clear of the screen's edge */
     @media (max-width:600px){
       .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
-      .ca-btn{bottom:calc(12px + var(--ca-bottom,0px) + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 24px)}
+      .ca-btn{bottom:calc(12px + var(--ca-btn-lift,0px) + env(safe-area-inset-bottom,0px));max-width:var(--ca-room,calc(100vw - 24px))}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
@@ -1071,7 +1074,8 @@ else (async function main() {
 
   // ---------------- the panel: best crimes, key, sync status, your $/nerve by crime ----------------
   let panel = null;
-  const btn = $("button", "ca-btn", "Crime Advisor");
+  const btn = $("button", "ca-btn");
+  btn.append($("span", "ca-bt", "Crime Advisor"));
   btn.type = "button";
   if (onCrimes) body.appendChild(btn);
   btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
@@ -1303,6 +1307,7 @@ else (async function main() {
       ["Last request", lastNet ? `${lastNet.host} by ${lastNet.via}: ${lastNet.ok ? `HTTP ${lastNet.status}` : lastNet.err}, ${ago(lastNet.at)}` : "none yet"],
       ["Sync", syncError ? `problem: ${syncError}` : syncing ? syncNote || "running" : "idle"],
       ["This page", pageDiag()],
+      ["Bottom bar", barSeen],
       ["Screen", `${innerWidth}\u00d7${innerHeight}, ${matchMedia("(hover: none)").matches ? "touch" : "mouse"}, ${LOW ? "low-end device" : "normal device"}`],
       ["Browser", navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)],
     ];
@@ -2134,7 +2139,8 @@ else (async function main() {
       setTimeout(() => e.classList.remove("ca-flash"), 3400);
     }
   }
-  function drawBest(k) {
+  // What to do, for the panel's Best crimes and the button's glance
+  function plan(k) {
     const src = values || {}, lead = src.leaders || {}, crimes = src.crimes || {};
     // Worth doing here: options at or above your average. None: just the best on show, as one muted row, so the
     // crimes worth doing elsewhere get the room (Aaron, 2026-10-17: on Pickpocketing only waiting for a Cyclist was
@@ -2147,6 +2153,10 @@ else (async function main() {
     // elsewhere: what beats the best you can do here now (waiting for a mark is a maybe), and is at your average
     const elsewhere = Object.entries(lead).filter(([t, x]) => t !== k && reach(x) > top && (!avg || reach(x) >= avg))
       .sort((a, b) => reach(b[1]) - reach(a[1])).slice(0, 3);
+    return { src, crimes, avg, here, weak, wait, elsewhere };
+  }
+  function drawBest(k) {
+    const { src, crimes, avg, here, weak, wait, elsewhere } = plan(k);
     const sig = JSON.stringify([k, here.map(x => [x.name, x.pn, x.tier, x.est]), weak && [weak.name, weak.pn, weak.tier], wait, elsewhere, avg]);
     if (bestBox.dataset.sig === sig) return;
     bestBox.dataset.sig = sig;
@@ -2204,13 +2214,37 @@ else (async function main() {
     }
   }
   // The button is a glance too: the best option on show ("Crime Advisor \u00b7 S Pharmacy").
+  // Two lines (Aaron, 2026-10-17: it fits the space beside Torn's chat bar on a phone): "Crime Advisor", then the one
+  // thing to do: the best here at your average or above, else what to wait for here, else the best crime elsewhere,
+  // else (muted) the best on show. On the hub: the best crime.
   function glance() {
-    const x = tab ? onPage[0] : null, sig = x ? `${x.tier}|${x.name}|${x.pn}` : "";
+    const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere } = plan(k);
+    let tier = null, line = "", tip = "", muted = false;
+    if (here.length) {
+      const x = here[0]; tier = x.tier; line = x.name;
+      tip = `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
+    } else if (wait) {
+      line = `\u23f3 ${wait.verb[0].toUpperCase()}${wait.verb.slice(1)} ${wait.name}`;
+      tip = `Nothing here beats your average now: ${wait.verb} ${wait.name} (${short(wait.per_nerve)}/nerve)`;
+    } else if (elsewhere.length) {
+      const [t, x] = elsewhere[0], w = x.ideal && x.ideal.per_nerve >= (x.per_nerve || 0) ? x.ideal : null;
+      line = `\u2192 ${crimes[t] || t} \u00b7 ${w ? w.name : x.name}`;
+      tip = `${k ? "Better elsewhere" : "Your best crime"}: ${crimes[t] || t}, ${w ? `${w.verb} ${w.name}` : x.name} (${short(w ? w.per_nerve : x.per_nerve)}/nerve)`;
+    } else if (weak) {
+      tier = weak.tier; line = weak.name; muted = true;
+      tip = `The best on show, below your average: ${weak.name}, ${short(weak.pn)}/nerve`;
+    }
+    const sig = `${tier}|${line}|${muted}`;
     if (btn.dataset.sig === sig) return;
     btn.dataset.sig = sig;
-    btn.replaceChildren("Crime Advisor");
-    btn.title = x ? `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})` : "";
-    if (x) btn.append(" \u00b7", $("span", `ca-tier ${x.tier}`, TILE[x.tier]), $("span", "ca-bn", x.name));
+    btn.replaceChildren($("span", "ca-bt", "Crime Advisor"));
+    btn.title = tip;
+    if (line) {
+      const a = $("span", `ca-ba${muted ? " muted" : ""}`);
+      if (tier) a.append($("span", `ca-tier ${tier}`, TILE[tier]));
+      a.append($("span", "ca-bn", line));
+      btn.append(a);
+    }
   }
 
   // ---- watching the page: Torn switches crimes without a page load. The chips go on as soon as a crime's names are
@@ -2255,7 +2289,7 @@ else (async function main() {
     const max = document.documentElement.scrollHeight - innerHeight;
     if (scrollY < 0 || scrollY > max + 1) { setTimeout(() => { clearAt = 0; bottomClear(); }, 200); return; }
     clearAt = Date.now();
-    let h = 0;
+    let h = 0, left = innerWidth;
     for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
       for (const el of document.elementsFromPoint(x, innerHeight - 4)) {
         if (el.closest(OURS) || el === document.documentElement || el === body) continue;
@@ -2270,15 +2304,21 @@ else (async function main() {
           for (let m = el; m; m = m === n ? null : m.parentElement) {
             const r = m.getBoundingClientRect();
             if (r.height > innerHeight * 0.25 || r.bottom < innerHeight - 8) break;
-            top = Math.min(top, r.top);
+            top = Math.min(top, r.top); left = Math.min(left, r.left);
           }
           if (top < innerHeight) h = Math.max(h, innerHeight - top);
           break;
         }
       }
     }
-    document.documentElement.style.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
+    // The button: beside the bar when the space to its left fits it (Aaron's iPhone: about 40% of the width), else above
+    const de = document.documentElement.style, room = Math.floor(left - 24), beside = h > 0 && room >= 130;
+    de.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
+    de.setProperty("--ca-btn-lift", beside ? "0px" : `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
+    if (beside) de.setProperty("--ca-room", `${room}px`); else de.removeProperty("--ca-room");
+    barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${beside ? " (button beside it)" : " (button above it)"}` : "none";
   }
+  var barSeen = "not measured";  // (var: the panel can ask before this line has run)
   addEventListener("resize", () => { clearAt = 0; bottomClear(); });
   let scrollT = null;  // (and again once a scroll settles)
   addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(() => { clearAt = 0; bottomClear(); }, 250); }, { passive: true });
