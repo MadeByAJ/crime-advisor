@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.9
+// @version      2.1.10
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2239,6 +2239,10 @@ else (async function main() {
   var clearAt = 0;  // (var: the panel can open, on its own, before this line has run)
   function bottomClear() {
     if (Date.now() - clearAt < 2000) return;
+    // (not mid-bounce: pulling past the end of an iPhone page springs Torn's bar up and back, and measured then the
+    // button stayed under the bar for a while; Aaron, 2026-10-17)
+    const max = document.documentElement.scrollHeight - innerHeight;
+    if (scrollY < 0 || scrollY > max + 1) { setTimeout(() => { clearAt = 0; bottomClear(); }, 200); return; }
     clearAt = Date.now();
     let h = 0;
     for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
