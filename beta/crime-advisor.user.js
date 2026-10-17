@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.4
+// @version      2.1.5
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1551,8 +1551,10 @@ else (async function main() {
 
   // A phone's narrow picker can push a chip past its edge (Aaron's iPhone, Forgery's projects: "Ordination Certificate
   // C $2.4..." cut off): then the chip keeps its tier alone; the number is in its label and its card.
+  // (measured with the number shown, once the picker has finished opening: mid-animation every chip looked too wide)
   function fitChip(b) {
     if (!b.isConnected) return;
+    b.classList.remove("mini");
     let clip = b.parentElement;
     while (clip && clip !== body) {
       const cs = getComputedStyle(clip);
@@ -1828,7 +1830,7 @@ else (async function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
-      if (picker || tight) requestAnimationFrame(() => fitChip(b));
+      if (picker || tight) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
       if (v.methods) markMethods(row, v);
     }
