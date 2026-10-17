@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.5
+// @version      2.1.6
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1310,7 +1310,8 @@ else (async function main() {
     if (!tab) return "the Crimes hub";
     const k = tabKey(tab), rows = (values && values.tabs && values.tabs[k]) || [], text = (crimeRoot().innerText || "").toLowerCase();
     const found = rows.filter(r => (r.find || [r.kind]).some(f => text.includes(String(f).toLowerCase())));
-    return `${k}: ${rows.length} options known, ${found.length} named on the page, ${document.querySelectorAll(".ca-chip").length} chips`;
+    return `${k}: ${rows.length} options known, ${found.length} named on the page, ${document.querySelectorAll(".ca-chip").length} chips, ` +
+      `${onPage.length} graded (read from ${["the crimes app", "the content area", "the whole page"][rootWide]})`;
   }
   function pageOutline() {
     if (!tab) return "";
@@ -1417,7 +1418,18 @@ else (async function main() {
     (m.addedNodes.length + m.removedNodes.length > 0 && [...m.addedNodes, ...m.removedNodes].every(n => n.nodeType === 1 && n.matches(SKIP)));
   const tabKey = t => (t || "").replace(/[^a-z]/gi, "").toLowerCase();
   const current = () => (location.hash.match(/^#\/([a-z-]+)/i) || [])[1] || null;
-  const crimeRoot = () => document.querySelector("[class*='crimes-app'], #react-root, .content-wrapper") || body;
+  // Where the crime's options are: the crimes app. On a phone it didn't hold the job list (Aaron's iPhone in Torn PDA,
+  // Disposal: none of the names on show were in it), so when a crime's options are on the page but not in there, the
+  // search widens: Torn's content area, then the whole page.
+  let rootWide = 0, widenAt = 0;
+  const crimeRoot = () => (rootWide < 1 && document.querySelector("[class*='crimes-app'], #react-root, .content-wrapper"))
+    || (rootWide < 2 && document.querySelector(".content-wrapper")) || body;
+  function widenRoot(k) {
+    if (rootWide >= 2 || onPage.length || !values || !values.tabs || !(values.tabs[k] || []).length) return;
+    const names = values.tabs[k].flatMap(r => r.find || [r.kind]).map(f => String(f).toLowerCase());
+    const inRoot = (crimeRoot().innerText || "").toLowerCase(), all = (body.innerText || "").toLowerCase();
+    if (!names.some(f => inRoot.includes(f)) && names.some(f => all.includes(f))) { rootWide++; schedule(); }
+  }
   let tab = null, since = 0;
 
   // Disposal: each method's reliability, nerve and expected $/nerve (the card's Methods). How reliable a method is
@@ -1780,7 +1792,9 @@ else (async function main() {
       const raw = n.nodeValue.trim(), t = raw.toLowerCase();
       if (t.length < 3 || t.length > 60 || !byName.has(t)) continue;
       const host = n.parentElement;  // (raw: the name as Torn's page shows it, for the card; the logs say "the pharmacy")
-      if (host && !host.closest(SKIP)) hits.push([host, byName.get(t), chipSlot(host, k).querySelector(":scope > .ca-chip"), raw]);
+      // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips)
+      if (host && !host.closest(SKIP) && !host.closest("[class*='slidingPanel'], [class*='statistic']"))
+        hits.push([host, byName.get(t), chipSlot(host, k).querySelector(":scope > .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)
     const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null).map(pnOf));
@@ -2202,7 +2216,7 @@ else (async function main() {
       // (Torn can keep the title's element from one crime to the next: the last crime's badges go)
       root.querySelectorAll(".ca-uq, .ca-title, .ca-path, .ca-skim").forEach(b => { if (b.dataset.tab !== k) b.remove(); });
       headerUniques(root, k);
-      if (values) { badges(root, k); titleGrade(root, k); pathChip(root, k); }
+      if (values) { badges(root, k); titleGrade(root, k); pathChip(root, k); if (Date.now() - widenAt > 3000) { widenAt = Date.now(); widenRoot(k); } }
       if (k === "bootlegging") copyNext(root);
       outcomeValues(root);
     } else {  // the Crimes hub
