@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.11
+// @version      2.1.12
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -976,9 +976,9 @@ else (async function main() {
       .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
       .ca-btn{bottom:calc(12px + var(--ca-bottom,0px) + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 24px)}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
-      /* a row's chip on its own line under the name, the same on every row (beside it only where the name left room,
-         Aaron's iPhone, Shoplifting); pickers keep it beside the name so the list doesn't grow */
-      .ca-hud.ca-chip:not(.pick){display:flex;width:fit-content;margin:4px 0 2px}
+      /* chips stay beside the name, compact (Torn's rows are one line high: a chip on a line of its own pushed the name
+         and the risk bar out of view, Aaron's iPhone); one that still wraps keeps its tier alone (fitChip) */
+      .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}
     }
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
@@ -1582,7 +1582,15 @@ else (async function main() {
     }
     const edge = clip && clip !== body ? clip.getBoundingClientRect().right : innerWidth;
     // past the list's edge, or squeezed by the row (Disposal on a phone: "C $26..." between the name and the icons)
-    b.classList.toggle("mini", b.getBoundingClientRect().right > edge - 2 || b.scrollWidth > b.clientWidth + 1);
+    // ...or pushed onto a line of its own under a long name (a phone's rows are one line high)
+    let wrapped = false;
+    const tn = [...b.parentElement.childNodes].find(x => x.nodeType === 3 && x.nodeValue.trim());
+    if (tn) {
+      const r = document.createRange(); r.selectNodeContents(tn);
+      const lines = r.getClientRects(), last = lines[lines.length - 1];
+      if (last) wrapped = b.getBoundingClientRect().top >= last.bottom - 2;
+    }
+    b.classList.toggle("mini", b.getBoundingClientRect().right > edge - 2 || b.scrollWidth > b.clientWidth + 1 || wrapped);
   }
   // ---- the chip on each option (Glance): a tier and one number. The tier compares it with your average $/nerve
   // across all crimes (values.overall); S is also the best of the options on show.
@@ -1808,7 +1816,7 @@ else (async function main() {
     const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null).map(pnOf));
     // (a chip already on is only looked at again when Torn's unique star might have come or gone, the best changed,
     // your nerve did, or the numbers were recomputed)
-    const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow();
+    const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow(), phone = matchMedia("(max-width:600px)").matches;
     for (const [host, v, had, raw] of hits) {  // inside the name's own element: the page redrawing it just clears the chip
       // (two names in one row can lead to the same slot, e.g. Forgery's step label: one chip)
       const slot = chipSlot(host, k), cur = slot.querySelector(":scope > .ca-chip");
@@ -1825,7 +1833,7 @@ else (async function main() {
       const need = k !== "arson" || collect || short100 ? null : nerveFor(v), low = !!need && nv != null && need > nv;
       const picker = !!host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']");
       // (Disposal's name column is narrow, and Torn's pickers too: "$2.2k" without "/n")
-      const tight = k === "disposal" || picker, text = chipText(v, tier, short100, pct).replace(tight ? /\/n$/ : /^$/, "");
+      const tight = k === "disposal" || picker || phone, text = chipText(v, tier, short100, pct).replace(tight ? /\/n$/ : /^$/, "");
       const sig = [tier, star ? 1 : 0, text, needs.join(","), low ? 1 : 0, version].join("|");
       if (had) {
         Object.assign(had.dataset, { best: String(best), nerve: String(nv), v: String(version), star: star ? "1" : "0" });
