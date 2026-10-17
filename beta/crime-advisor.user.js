@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.15
+// @version      2.1.16
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -978,6 +978,7 @@ else (async function main() {
     @media (max-width:600px){
       .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
       .ca-btn{bottom:calc(12px + var(--ca-btn-lift,0px) + env(safe-area-inset-bottom,0px));max-width:var(--ca-room,calc(100vw - 24px))}
+      .ca-btn{padding:6px 10px 7px}.ca-btn .ca-ba{font-size:12px;gap:5px}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
@@ -2320,7 +2321,7 @@ else (async function main() {
       }
     }
     // The button: beside the bar when the space to its left fits it (Aaron's iPhone: about 40% of the width), else above
-    const de = document.documentElement.style, room = Math.floor(left - 24), beside = h > 0 && room >= 130;
+    const de = document.documentElement.style, room = Math.floor(left - 18), beside = h > 0 && room >= 120;
     de.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     de.setProperty("--ca-btn-lift", beside ? "0px" : `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     if (beside) de.setProperty("--ca-room", `${room}px`); else de.removeProperty("--ca-room");
