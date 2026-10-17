@@ -10,6 +10,18 @@
 <meta property="og:title" content="Crime Advisor for Torn">
 <meta property="og:description" content="Your own $/nerve for every crime, arson job, scam and disposal method, right on Torn's crime pages. Read-only; your data stays in your browser.">
 <meta name="theme-color" content="#1a1a19">
+<!-- Visits: GoatCounter (no cookies, no personal data): page views, unique visitors, where they came from, and
+     clicks on Install, Make a key and outside links. The userscript itself sends nothing. -->
+<script data-goatcounter="https://ajthesecond.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<script>
+document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest("a[href]");
+  if (!a || !window.goatcounter || !window.goatcounter.count) return;
+  var h = a.getAttribute("href"), what = /crime-advisor\.user\.js$/.test(h) ? "install" : /addNewKey/.test(h) ? "make-key"
+    : a.host && a.host !== location.host ? "out/" + a.host : null;
+  if (what) window.goatcounter.count({ path: "click/" + what, title: a.textContent.trim().slice(0, 60), event: true });
+});
+</script>
 <style>[hidden]{display:none!important}img{max-width:100%}.btn.install{display:inline-block;font-size:15px;padding:10px 18px;text-decoration:none}</style>
 
 <title>Crime Advisor Guide</title>
@@ -2358,6 +2370,7 @@ else (function main() {
 
   <footer>
     <p>Made by AJTheSecond. Arson recipes come from the community's Arsonist's Ledger at balaclava.app. Your grades and $/nerve come from your own logs.</p>
+    <p>This site counts visits with GoatCounter: no cookies, no personal data. The script itself sends nothing.</p>
   </footer>
 </div>
 
