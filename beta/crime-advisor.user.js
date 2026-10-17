@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.2
+// @version      2.1.3
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1451,14 +1451,16 @@ else (async function main() {
   // The Crimes hub: each crime's card gets its uniques left ("\u2605 5 left"; all found: the star with its check), as Torn's
   // banner counted them when that crime was last open, else from your logs against the crime's total.
   function hubUniques(root) {
-    const seen = get("uq", {}), logs = summary ? Object.fromEntries(summary.all.crimes.map(c => [CA.slug(c.name), c])) : {};
+    // (from your logs only once all your history is in: half-loaded, every crime looks unfound; Aaron's phone showed
+    // Shoplifting "59 left" two minutes into loading)
+    const seen = get("uq", {}), histDone = !!get("sync", {}).done, logs = summary ? Object.fromEntries(summary.all.crimes.map(c => [CA.slug(c.name), c])) : {};
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), done = new Set(), hosts = [];
     for (let n = w.nextNode(); n; n = w.nextNode()) {
       const t = n.nodeValue.trim(), k = tabKey(t), host = n.parentElement;
       if (t.length < 4 || t.length > 30 || done.has(k) || !host || host.closest(SKIP) || !host.closest("a[href*='#/']")) continue;
       let u = seen[k] ? { found: seen[k][0], total: seen[k][1], est: false } : null;
-      if (!u && logs[k] && UQ_TOTAL[logs[k].id]) u = { found: Math.min(logs[k].uniques || 0, UQ_TOTAL[logs[k].id]), total: UQ_TOTAL[logs[k].id], est: true };
-      if (!u || !u.total) continue;
+      if (!u && histDone && logs[k] && UQ_TOTAL[logs[k].id]) u = { found: Math.min(logs[k].uniques || 0, UQ_TOTAL[logs[k].id]), total: UQ_TOTAL[logs[k].id], est: true };
+      if (!u || !u.total) { host.querySelector(":scope > .ca-hubuq")?.remove(); continue; }
       done.add(k);
       hosts.push([host, u, k]);
     }
