@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.1.10
+// @version      2.1.11
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -976,6 +976,9 @@ else (async function main() {
       .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
       .ca-btn{bottom:calc(12px + var(--ca-bottom,0px) + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 24px)}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
+      /* a row's chip on its own line under the name, the same on every row (beside it only where the name left room,
+         Aaron's iPhone, Shoplifting); pickers keep it beside the name so the list doesn't grow */
+      .ca-hud.ca-chip:not(.pick){display:flex;width:fit-content;margin:4px 0 2px}
     }
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
@@ -1829,7 +1832,7 @@ else (async function main() {
         if (had.dataset.sig === sig) continue;
         had.remove();
       }
-      const b = $("button", `ca-badge ca-hud ca-chip ${tier}${tight ? " tight" : ""}${k === "forgery" ? " step" : ""}`), val = $("span", "ca-v");
+      const b = $("button", `ca-badge ca-hud ca-chip ${tier}${tight ? " tight" : ""}${picker ? " pick" : ""}${k === "forgery" ? " step" : ""}`), val = $("span", "ca-v");
       b.type = "button";
       Object.assign(b.dataset, { star: star ? "1" : "0", sig, best: String(best), nerve: String(nv), v: String(version), avg: v.avg_net || "" });
       if (star) val.append($("span", "ca-star", "\u2605"));  // (one star a row, in the chip: Torn shows a unique waiting now)
