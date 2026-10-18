@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.27
+// @version      2.2.28
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -674,7 +674,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.27";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.28";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2274,7 +2274,9 @@ else (async function main() {
         continue;
       }
       if (had && !starsHere && had.dataset.star !== "1" && had.dataset.best === String(best) && had.dataset.nerve === String(nv) &&
-          had.dataset.v === String(version)) continue;
+          had.dataset.v === String(version) && had.dataset.kind === v.kind) continue;
+      // (and only for the same option: Torn's project picker swaps the name in the same box, and Driver's License kept
+      // ID Badge's C; Aaron's iPhone, 2.2.27)
       const { needs, row } = requirements(host, byName);
       const star = [...row.querySelectorAll("[aria-label]")].some(isStar);
       const rowText = row.textContent || "", pct = +((rowText.match(/(\d{1,3})%/) || [])[1] ?? NaN);
@@ -2288,7 +2290,7 @@ else (async function main() {
       const picker = !!host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']");
       // (Disposal's name column is narrow, and Torn's pickers too: "$2.2k" without "/n")
       const tight = k === "disposal" || picker || phone, text = (lvl ? levelText(v) : chipText(v, tier, short100, pct)).replace(tight ? /\/n$/ : /^$/, "");
-      const sig = [tier, star ? 1 : 0, text, needs.join(","), low ? 1 : 0, version].join("|");
+      const sig = [tier, star ? 1 : 0, text, needs.join(","), low ? 1 : 0, version, v.kind].join("|");
       if (had) {
         Object.assign(had.dataset, { best: String(best), nerve: String(nv), v: String(version), star: star ? "1" : "0" });
         if (had.dataset.sig === sig) continue;
@@ -2296,7 +2298,7 @@ else (async function main() {
       }
       const b = $("button", `ca-badge ca-hud ca-chip ${tier}${tight ? " tight" : ""}${picker ? " pick" : ""}${k === "forgery" ? " step" : ""}`), val = $("span", "ca-v");
       b.type = "button";
-      Object.assign(b.dataset, { star: star ? "1" : "0", sig, best: String(best), nerve: String(nv), v: String(version), avg: v.avg_net || "" });
+      Object.assign(b.dataset, { star: star ? "1" : "0", sig, best: String(best), nerve: String(nv), v: String(version), avg: v.avg_net || "", kind: v.kind });
       if (star) val.append($("span", "ca-star", "\u2605"));  // (one star a row, in the chip: Torn shows a unique waiting now)
       if (low) val.append($("span", "ca-bolt", "\u26a1"));
       if (!phone) val.append(text);  // (a phone: the grade alone, Aaron 2026-10-17; the number is in the card and the label)
