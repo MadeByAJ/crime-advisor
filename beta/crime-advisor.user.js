@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.18
+// @version      2.2.19
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -317,6 +317,7 @@ const CA = (() => {
     "document": "o y g* r r", "firearm": "o y* - g r", "general waste": "y* g g o r", "industrial waste": "o y* - g -",
     "murder weapon": "o y - g* r", "old furniture": "y o* g y r", "broken appliance": "o o - g* r", "vehicle": "o* - g g -" };
   const CHART_ODDS = { g: 0.95, y: 0.82, o: 0.65, r: 0.10 }, CHART_WEIGHT = 8;  // the chart counts as 8 attempts of your own
+  const PICK_TRIES = 15, PICK_EDGE = 1.15;  // your own method over the chart's: this many tries, this much better
   function disposalMethods(job, stats) {
     const chart = (DISPOSAL_CHART[job.toLowerCase().replace(/s$/, "")] || DISPOSAL_CHART[job.toLowerCase()] || "? ? ? ? ?").split(" ");
     const done = Object.values(stats).filter(t => t.success > (t.uniques || 0));  // (what a job pays: not its one-time uniques)
@@ -339,7 +340,11 @@ const CA = (() => {
     const score = m => m.ev != null ? m.ev : m.p / m.nerve;  // same pay whichever way: odds per nerve
     const best = live.reduce((a, m) => !a || score(m) > score(a) ? m : a, null);
     const steady = live.reduce((a, m) => !a || m.p > a.p || (m.p === a.p && m.nerve < a.nerve) ? m : a, null);
-    return { methods, pay: pay ? Math.round(pay) : null, best: best && best.method, steady: steady && steady.method };
+    // the one to use: the chart's starred method, unless your own record with another clearly beats it (as crimes.py)
+    const starred = live.find(m => m.star) || best;
+    const mine = live.filter(m => m.tries >= PICK_TRIES && m.ev != null && starred && starred.ev != null && m.ev > starred.ev * PICK_EDGE);
+    const pick = mine.length ? mine.reduce((a, m) => m.ev > a.ev ? m : a) : starred;
+    return { methods, pay: pay ? Math.round(pay) : null, best: best && best.method, steady: steady && steady.method, pick: pick && pick.method };
   }
 
   // What a try at one spot brings (the card's odds and top items; TornBrain's outcomes()): how often it works, fails or
@@ -541,7 +546,8 @@ const CA = (() => {
         const c = r.community || {};
         if (pn != null && pn < 0 && (c.per_nerve || 0) > 0) { pn = c.per_nerve; est = true; }
         const evs = (r.methods || []).filter(m => m.available && m.ev != null).map(m => m.ev);
-        if (evs.length) pn = Math.max(...evs);  // (Disposal: the best method, as the page shows it)
+        const pk = (r.methods || []).find(m => m.method === r.pick && m.ev != null);
+        if (evs.length) pn = pk ? pk.ev : Math.max(...evs);  // (Disposal: the method to use, as the page shows it)
         if (pn == null || pn <= 0 || (text && !r.find.some(f => text.includes(f.toLowerCase()))) || ALL_LISTED.has(tab)) continue;
         if (!best || pn > best.per_nerve) { const n = r.kind.replace(/^the /i, ""); best = { name: n[0].toUpperCase() + n.slice(1), per_nerve: Math.round(pn), est }; }
       }
@@ -583,7 +589,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.18";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.19";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1795,7 +1801,9 @@ else (async function main() {
   // Disposal: judged by the best method's expected $/nerve (reliability x pay - materials, over its nerve), not your
   // own history (a Vehicle you'd mostly abandoned can lose money; burning it pays).
   const VERBS = { Abandoning: "Abandon", Burying: "Bury", Burning: "Burn", Sinking: "Sink", Dissolving: "Dissolve" };
-  const pickOf = v => (v.methods || []).reduce((b, m) => m.available && m.ev != null && (!b || m.ev > b.ev) ? m : b, null);
+  // (Disposal: the method to use, as the analysis picked it; the best expected $/nerve only where there's no pick)
+  const pickOf = v => ((v.pick && (v.methods || []).find(m => m.method === v.pick && m.available && m.ev != null)) ||
+    (v.methods || []).reduce((b, m) => m.available && m.ev != null && (!b || m.ev > b.ev) ? m : b, null));
   const pnOf = v => { const m = pickOf(v); return m ? m.ev : recipeOver(v) ? v.community.per_nerve : v.per_nerve; };
   // The nerve a job takes start to finish: the method's (Disposal), the recipe's, else yours (what you made over your
   // $/nerve). Flagged when it's more than you have now.

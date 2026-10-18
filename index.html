@@ -145,7 +145,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.2.18</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.2.19</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -238,11 +238,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 2670 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 2678 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.18
+// @version      2.2.19
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -558,6 +558,7 @@ const CA = (() =&gt; {
     "document": "o y g* r r", "firearm": "o y* - g r", "general waste": "y* g g o r", "industrial waste": "o y* - g -",
     "murder weapon": "o y - g* r", "old furniture": "y o* g y r", "broken appliance": "o o - g* r", "vehicle": "o* - g g -" };
   const CHART_ODDS = { g: 0.95, y: 0.82, o: 0.65, r: 0.10 }, CHART_WEIGHT = 8;  // the chart counts as 8 attempts of your own
+  const PICK_TRIES = 15, PICK_EDGE = 1.15;  // your own method over the chart's: this many tries, this much better
   function disposalMethods(job, stats) {
     const chart = (DISPOSAL_CHART[job.toLowerCase().replace(/s$/, "")] || DISPOSAL_CHART[job.toLowerCase()] || "? ? ? ? ?").split(" ");
     const done = Object.values(stats).filter(t =&gt; t.success &gt; (t.uniques || 0));  // (what a job pays: not its one-time uniques)
@@ -580,7 +581,11 @@ const CA = (() =&gt; {
     const score = m =&gt; m.ev != null ? m.ev : m.p / m.nerve;  // same pay whichever way: odds per nerve
     const best = live.reduce((a, m) =&gt; !a || score(m) &gt; score(a) ? m : a, null);
     const steady = live.reduce((a, m) =&gt; !a || m.p &gt; a.p || (m.p === a.p &amp;&amp; m.nerve &lt; a.nerve) ? m : a, null);
-    return { methods, pay: pay ? Math.round(pay) : null, best: best &amp;&amp; best.method, steady: steady &amp;&amp; steady.method };
+    // the one to use: the chart's starred method, unless your own record with another clearly beats it (as crimes.py)
+    const starred = live.find(m =&gt; m.star) || best;
+    const mine = live.filter(m =&gt; m.tries &gt;= PICK_TRIES &amp;&amp; m.ev != null &amp;&amp; starred &amp;&amp; starred.ev != null &amp;&amp; m.ev &gt; starred.ev * PICK_EDGE);
+    const pick = mine.length ? mine.reduce((a, m) =&gt; m.ev &gt; a.ev ? m : a) : starred;
+    return { methods, pay: pay ? Math.round(pay) : null, best: best &amp;&amp; best.method, steady: steady &amp;&amp; steady.method, pick: pick &amp;&amp; pick.method };
   }
 
   // What a try at one spot brings (the card's odds and top items; TornBrain's outcomes()): how often it works, fails or
@@ -782,7 +787,8 @@ const CA = (() =&gt; {
         const c = r.community || {};
         if (pn != null &amp;&amp; pn &lt; 0 &amp;&amp; (c.per_nerve || 0) &gt; 0) { pn = c.per_nerve; est = true; }
         const evs = (r.methods || []).filter(m =&gt; m.available &amp;&amp; m.ev != null).map(m =&gt; m.ev);
-        if (evs.length) pn = Math.max(...evs);  // (Disposal: the best method, as the page shows it)
+        const pk = (r.methods || []).find(m =&gt; m.method === r.pick &amp;&amp; m.ev != null);
+        if (evs.length) pn = pk ? pk.ev : Math.max(...evs);  // (Disposal: the method to use, as the page shows it)
         if (pn == null || pn &lt;= 0 || (text &amp;&amp; !r.find.some(f =&gt; text.includes(f.toLowerCase()))) || ALL_LISTED.has(tab)) continue;
         if (!best || pn &gt; best.per_nerve) { const n = r.kind.replace(/^the /i, ""); best = { name: n[0].toUpperCase() + n.slice(1), per_nerve: Math.round(pn), est }; }
       }
@@ -824,7 +830,7 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.18";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.19";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2036,7 +2042,9 @@ else (async function main() {
   // Disposal: judged by the best method's expected $/nerve (reliability x pay - materials, over its nerve), not your
   // own history (a Vehicle you'd mostly abandoned can lose money; burning it pays).
   const VERBS = { Abandoning: "Abandon", Burying: "Bury", Burning: "Burn", Sinking: "Sink", Dissolving: "Dissolve" };
-  const pickOf = v =&gt; (v.methods || []).reduce((b, m) =&gt; m.available &amp;&amp; m.ev != null &amp;&amp; (!b || m.ev &gt; b.ev) ? m : b, null);
+  // (Disposal: the method to use, as the analysis picked it; the best expected $/nerve only where there's no pick)
+  const pickOf = v =&gt; ((v.pick &amp;&amp; (v.methods || []).find(m =&gt; m.method === v.pick &amp;&amp; m.available &amp;&amp; m.ev != null)) ||
+    (v.methods || []).reduce((b, m) =&gt; m.available &amp;&amp; m.ev != null &amp;&amp; (!b || m.ev &gt; b.ev) ? m : b, null));
   const pnOf = v =&gt; { const m = pickOf(v); return m ? m.ev : recipeOver(v) ? v.community.per_nerve : v.per_nerve; };
   // The nerve a job takes start to finish: the method's (Disposal), the recipe's, else yours (what you made over your
   // $/nerve). Flagged when it's more than you have now.
