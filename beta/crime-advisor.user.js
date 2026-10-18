@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.24
+// @version      2.2.25
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
-// @updateURL    https://tornbrain.com/beta/crime-advisor.user.js
-// @downloadURL  https://tornbrain.com/beta/crime-advisor.user.js
+// @updateURL    https://tornbrain.com/crime-advisor.user.js
+// @downloadURL  https://tornbrain.com/crime-advisor.user.js
 // @match        https://www.torn.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -633,7 +633,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.24";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.25";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1087,6 +1087,7 @@ else (async function main() {
     .ca-hud.X{background:#6b2020;color:#ffd6d6}.ca-hud.X .ca-t{background:#e5534b;color:#fff}
     .ca-hud.Q{background:#232321;color:#a9a89f;outline:1px dashed #55554f;outline-offset:-1px}.ca-hud.Q .ca-t{background:transparent;color:#c3c2b7}
     .ca-hud.W{background:#3a2f12;color:#ffe9a8}.ca-hud.W .ca-t{background:#5a4712;color:#ffe9a8}
+    .ca-hud.L{background:#1e1e1c;color:#8f8e86;outline:1px solid #3a3a37;outline-offset:-1px}.ca-hud.L .ca-t{background:transparent;color:#8f8e86;font-weight:600;cursor:help}
     .ca-hud.mini .ca-v{display:none}.ca-hud.step{margin-left:10px}.ca-hud.tight .ca-v{padding:0 6px 0 4px;gap:2px}.ca-hud.tight .ca-t{min-width:16px;padding:0 4px}
     .ca-badge.ca-oval{align-self:center;margin-left:10px;cursor:help;min-height:24px;font-size:12px}
     .ca-hud .ca-lbl{display:flex;align-items:center;padding:0 7px;font:700 9px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;background:rgba(0,0,0,.28)}
@@ -1863,7 +1864,7 @@ else (async function main() {
   }
   // ---- the chip on each option (Glance): a tier and one number. The tier compares it with your average $/nerve
   // across all crimes (values.overall); S is also the best of the options on show.
-  const TILE = { S: "S", A: "A", B: "B", C: "C", X: "\u2715", Q: "?", W: "\u26a0", G: "\u2713" };
+  const TILE = { S: "S", A: "A", B: "B", C: "C", X: "\u2715", Q: "?", W: "\u26a0", G: "\u2713", L: "L" };
   const TIERWORD = { S: "best here, above your average", A: "above your average", B: "half to all of your average",
     C: "under half your average", X: "loses money", Q: "little history yet", W: "careful", G: "ready to collect" };
   // Your way lost money but the community recipe pays: judged by the recipe, shown as an estimate (~).
@@ -2065,11 +2066,23 @@ else (async function main() {
       "Your audience is capped by your skill: past it, gathering never draws anyone new.",
     disposal: "Use the method the community chart stars for each job (the green ring).",
     cracking: "Your rig's brute-force strength sets the pace; guess the last letters yourself to save nerve.",
-    forgery: "Better projects unlock at 25 and 50; a critical fail can lose a tool, so keep a spare.",
+    forgery: "Projects unlock every 25 levels (25, 50, 75). Sell finished documents to the print shop or to other players, whichever pays more; a critical fail can lose a tool.",
     scamming: "Rotate scam types (repeating one lowers responses) and cash out before suspicion builds.",
     arson: "Follow the recipe's steps; accidental jobs need a Lighter, suspicious ones the Flamethrower.",
   };
   const skillShown = () => !get("hideSkill", false);
+  // Options Torn shows before you can do them: Forgery's picker lists every project, greyed until its level (Torn's own
+  // picker, Aaron's screenshots 2026-10-18). Above your skill a project gets its unlock level, not a grade, and stays out
+  // of Best here (and isn't marked seen, so it's "Just unlocked" when you get there).
+  const UNLOCK = { forgery: { 25: ["Diploma", "License Plate", "Birth Certificate", "Ordination Certificate"],
+                              50: ["ID Badge", "Skeleton Key", "Prescription", "Travel Visa", "Medical License"],
+                              75: ["Police Badge", "Passport", "Bank Check", "ATM Key"] } };
+  const UNLOCK_AT = {};
+  for (const [k, lv] of Object.entries(UNLOCK)) for (const [at, names] of Object.entries(lv)) names.forEach(n => ((UNLOCK_AT[k] ||= {})[CA.gkey(n)] = +at));
+  const lockedAt = (k, v) => {
+    const at = (UNLOCK_AT[k] || {})[CA.gkey(v.kind)], s = values && values.crime_skill && values.crime_skill[k];
+    return at && s != null && Math.floor(s) < at ? at : 0;
+  };
   const tapAdvice = b => { b.style.cursor = "help";
     b.addEventListener("click", e => { if (!matchMedia("(hover: none)").matches) return; e.preventDefault(); e.stopPropagation(); showTip(b, b.title); }); };
   function pathChip(root, k) {
@@ -2163,7 +2176,7 @@ else (async function main() {
         hits.push([host, byName.get(t), slotFor(host, k).querySelector(":scope > .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)
-    const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null).map(pnOf));
+    const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null && !lockedAt(k, v)).map(pnOf));
     // (a chip already on is only looked at again when Torn's unique star might have come or gone, the best changed,
     // your nerve did, or the numbers were recomputed)
     const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow(), phone = matchMedia("(max-width:600px)").matches;
@@ -2171,6 +2184,23 @@ else (async function main() {
       // (two names in one row can lead to the same slot, e.g. Forgery's step label: one chip)
       const slot = slotFor(host, k), cur = slot.querySelector(":scope > .ca-chip");
       if (cur && cur !== had) continue;
+      const lv = lockedAt(k, v);
+      if (lv) {  // (above your skill: its unlock level, muted, and the tip; no grade, no card)
+        const lsig = `L${lv}|${version}`;
+        if (had && had.dataset.sig === lsig) continue;
+        had?.remove();
+        const pick = !!host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']");
+        const b = $("span", `ca-badge ca-hud ca-chip L tight${pick ? " pick" : ""}${k === "forgery" ? " step" : ""}`);
+        b.dataset.sig = lsig;
+        b.append($("span", "ca-t", `\ud83d\udd12 ${lv}`));
+        b.title = `Unlocks at skill ${lv}` + (v.guide ? ` \u00b7 guide ~${short(v.guide)}/nerve at max skill` : "");
+        b.setAttribute("aria-label", `${raw}: unlocks at skill ${lv}`);
+        tapAdvice(b);
+        if (slot !== host) host.querySelector(":scope > .ca-chip")?.remove();
+        slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
+        if (pick) pickRight(b, host);
+        continue;
+      }
       if (had && !starsHere && had.dataset.star !== "1" && had.dataset.best === String(best) && had.dataset.nerve === String(nv) &&
           had.dataset.v === String(version)) continue;
       const { needs, row } = requirements(host, byName);
@@ -2242,7 +2272,7 @@ else (async function main() {
       // (glance names: "Cemetery", not "Search the Cemetery")
       return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est,
                tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
-    }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.shown  // (on show: Disposal's
+    }).filter(x => !x.v.few && x.tier !== "G" && x.tier !== "L" && x.pn > 0 && x.shown  // (on show: Disposal's
       && !seenV.has(x.v) && seenV.add(x.v)).sort((a, b) => b.pn - a.pn);                     // hidden history named jobs not on offer)
     noteSeen(k);
   }
@@ -2254,6 +2284,8 @@ else (async function main() {
     if (!onPage.length) return;
     const all = get("optsSeen", {}), mine = all[k], rec = { ...(mine || {}) };
     let changed = !mine;
+    // (a project above your skill isn't seen yet: 2.2.24 and before marked greyed ones too)
+    for (const key of Object.keys(rec)) if (lockedAt(k, { kind: key })) { delete rec[key]; changed = true; }
     for (const x of onPage) { const key = CA.gkey(x.v.kind); if (!(key in rec)) { rec[key] = mine ? Date.now() : 0; changed = true; } }
     if (changed) set("optsSeen", { ...all, [k]: rec });
   }
@@ -2550,7 +2582,7 @@ else (async function main() {
   // What to do, for the panel's Best crimes and the button's glance. An option you've never tried is only suggested
   // once it has shown on your own page: the guide covers every option, and a newer player hasn't unlocked them all
   // (Aaron, 2026-10-18: "handle for 'this player only has X options unlocked'").
-  const unlockedFor = (t, name) => { const rec = get("optsSeen", {})[t]; return !!rec && CA.gkey(name) in rec; };
+  const unlockedFor = (t, name) => { const rec = get("optsSeen", {})[t]; return !!rec && CA.gkey(name) in rec && !lockedAt(t, { kind: name }); };
   function reachable(lead) {
     const out = {};
     for (const [t, x] of Object.entries(lead)) {
