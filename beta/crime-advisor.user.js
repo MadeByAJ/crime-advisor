@@ -5,8 +5,8 @@
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
-// @updateURL    https://tornbrain.com/crime-advisor.user.js
-// @downloadURL  https://tornbrain.com/crime-advisor.user.js
+// @updateURL    https://tornbrain.com/beta/crime-advisor.user.js
+// @downloadURL  https://tornbrain.com/beta/crime-advisor.user.js
 // @match        https://www.torn.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -1632,7 +1632,7 @@ else (async function main() {
   function updNotice() {
     if (!updReady()) return null;
     const d = $("div", "ca-upd"), a = $("a", "ca-updgo", "Install");
-    a.href = get("updUrl", "https://tornbrain.com/crime-advisor.user.js"); a.target = "_blank"; a.rel = "noopener";
+    a.href = get("updUrl", "https://tornbrain.com/beta/crime-advisor.user.js"); a.target = "_blank"; a.rel = "noopener";
     const n = $("a", "ca-updnote", "what's new");
     n.href = "https://tornbrain.com/#new"; n.target = "_blank"; n.rel = "noopener";
     d.append($("span", "", `Update ready: ${get("updLatest", "")}`), n, a);
