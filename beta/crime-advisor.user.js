@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.10
+// @version      2.2.11
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2422,7 +2422,8 @@ else (async function main() {
     const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere } = plan(k);
     let tier = null, line = "", tip = "", muted = false;
     if (here.length) {
-      const x = here[0]; tier = x.tier; line = x.name;
+      // (a phone: the place alone, "Sports Arena", not "Sports Arena: Boxing Clever"; the card has the job)
+      const x = here[0]; tier = x.tier; line = matchMedia("(max-width:600px)").matches ? x.name.split(": ")[0] : x.name;
       tip = `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
     } else if (wait) {
       line = `\u23f3 ${wait.name}`;  // (the hourglass says wait or scout: "Scout for Foundry" didn't fit beside the chat bar)
