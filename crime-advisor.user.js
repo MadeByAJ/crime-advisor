@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.15
+// @version      2.2.16
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -583,7 +583,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.15";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.16";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2049,8 +2049,10 @@ else (async function main() {
       const raw = n.nodeValue.trim(), t = raw.toLowerCase();
       if (t.length < 3 || t.length > 60 || !byName.has(t)) continue;
       const host = n.parentElement;  // (raw: the name as Torn's page shows it, for the card; the logs say "the pharmacy")
-      // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips)
-      if (host && !host.closest(SKIP) && !host.closest("[class*='slidingPanel'], [class*='statistic']"))
+      // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips;
+      // and not in Torn's header or menus, or a link to another page: "Job" (Job Scam) badged the top bar's JOB)
+      if (host && !host.closest(SKIP) && !host.closest("[class*='slidingPanel'], [class*='statistic']") &&
+          !host.closest("header, nav, [role='navigation'], [role='banner'], a[href]:not([href^='#'])"))
         hits.push([host, byName.get(t), slotFor(host, k).querySelector(":scope > .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)

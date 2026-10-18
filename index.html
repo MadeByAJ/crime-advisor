@@ -145,7 +145,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.2.15</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.2.16</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -239,11 +239,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 2651 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 2653 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.15
+// @version      2.2.16
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -825,7 +825,7 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.15";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.16";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2291,8 +2291,10 @@ else (async function main() {
       const raw = n.nodeValue.trim(), t = raw.toLowerCase();
       if (t.length &lt; 3 || t.length &gt; 60 || !byName.has(t)) continue;
       const host = n.parentElement;  // (raw: the name as Torn's page shows it, for the card; the logs say "the pharmacy")
-      // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips)
-      if (host &amp;&amp; !host.closest(SKIP) &amp;&amp; !host.closest("[class*='slidingPanel'], [class*='statistic']"))
+      // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips;
+      // and not in Torn's header or menus, or a link to another page: "Job" (Job Scam) badged the top bar's JOB)
+      if (host &amp;&amp; !host.closest(SKIP) &amp;&amp; !host.closest("[class*='slidingPanel'], [class*='statistic']") &amp;&amp;
+          !host.closest("header, nav, [role='navigation'], [role='banner'], a[href]:not([href^='#'])"))
         hits.push([host, byName.get(t), slotFor(host, k).querySelector(":scope &gt; .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)
