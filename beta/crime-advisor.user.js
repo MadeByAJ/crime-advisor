@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.0
+// @version      2.3.1
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.0";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.1";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2320,6 +2320,9 @@ else (async function main() {
     shoplifting: "Go when cameras and guards are down; a store's notoriety fades 1% every 5 minutes, so rotate stores.",
     pickpocketing: "Pick marks that are safe at your skill (unsafe ones from about 40, risky ones 65, Cyclists 80), match their activity and build, and avoid police.",
     burglary: "Scout Any (3 nerve), case to about 50% confidence, then burgle; focused scouting is for hunting uniques.",
+    // (Aaron, 2026-10-19: "waiting for 2+ weeks on a gas station skimmer, and selling the details in batches ... a
+    // long-term grind, so its best to level this while working on other skills")
+    cardskimming: "A long-term grind: install a skimmer at a gas station and leave it 2+ weeks, then sell the details in batches. Level it alongside your other crimes.",
     hustling: "Start a session with plenty of nerve: a game takes a while to pay. Demo until players bet. Lose to pull more bettors in; win once enough are in (a win makes some leave). " +
       "Your audience is capped by your skill: past it, gathering never draws anyone new.",
     disposal: "Use the ringed method: the best $/nerve for each job (a guide's figure until your own record takes over). A \u2605 marks where the job's one-time unique is.",
@@ -2379,8 +2382,9 @@ else (async function main() {
       b.dataset.sig = text; b.dataset.tab = k;
       b.append($("span", "ca-t", stage === "done" ? "\u2713" : "\u25b6"));
       if (stage !== "done") b.append($("span", "ca-v", text));  // (at 100: the tile alone)
-      b.title = stage === "done" ? "Card Skimming skill 100: done" : stage === "gas"
-        ? `Stack skimmers at gas stations until skill 100 (now ${sk})` : `Build Card Skimming skill to 25 (now ${sk}), then stack skimmers at gas stations`;
+      b.title = (stage === "done" ? "Card Skimming skill 100." : stage === "gas"
+        ? `Stack skimmers at gas stations until skill 100 (now ${sk}).` : `Build Card Skimming skill to 25 (now ${sk}), then stack skimmers at gas stations.`) + ` ${ADVICE.cardskimming}`;
+      tapAdvice(b);
       host.appendChild(b);
     }
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);  // the install picker's Gas Station
