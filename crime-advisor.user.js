@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.23
+// @version      2.2.24
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -633,7 +633,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.23";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.24";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1361,7 +1361,11 @@ else (async function main() {
     cb.onchange = () => set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
     if (!matchMedia("(max-width:600px)").matches) f.append(auto);  // (no "Open automatically" on a phone)
-    f.append(commUi(), updUi(), aboutBrowser());
+    const sh = $("label", "ca-auto"), shc = $("input");  // (the skill badges by each crime's title)
+    shc.type = "checkbox"; shc.checked = skillShown();
+    shc.onchange = () => { set("hideSkill", !shc.checked); schedule(); };
+    sh.append(shc, "Show skill badges and advice");
+    f.append(sh, commUi(), updUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
   }
@@ -2046,27 +2050,47 @@ else (async function main() {
       (values.overall ? ` (your average ${short(values.overall)}/nerve)` : "");
     host.appendChild(b);
   }
-  // The crime path: a crime still below skill 100 shows where you are on it, with the advice for its stage on hover
-  // where there is some. Card Skimming has its own plan: skill to 25, then stack skimmers at gas stations to 100.
+  // The crime path: every crime is a skill target (Aaron, 2026-10-19: "treat all crimes as skill targets with advice").
+  // Below skill 100 (or not started) a crime shows where you are on it, with one line of advice for it: on hover, or
+  // a tap on a phone. Card Skimming has its own plan: skill to 25, then stack skimmers at gas stations to 100. The
+  // panel's footer can hide these badges. Sources: the community guides (Emforus, the Torn wiki) and Aaron.
   const ADVICE = {
+    searchforcash: "Each spot pays on its own cycle (trash on Mondays, the fountain on the 1st): search where it's due.",
+    bootlegging: "Copy the genre buyers want most (the badge says which) and keep every genre stocked.",
+    graffiti: "Cash only comes at reputation 2+ in a district: build one district before chasing money.",
+    shoplifting: "Go when cameras and guards are down; a store's notoriety fades 1% every 5 minutes, so rotate stores.",
+    pickpocketing: "Pick marks that are safe at your skill, match their activity and build, and avoid police.",
+    burglary: "Scout Any (3 nerve), case to about 50% confidence, then burgle; focused scouting is for hunting uniques.",
     hustling: "Start a session with plenty of nerve: a game takes a while to pay. Demo until players bet. Lose to pull more bettors in; win once enough are in (a win makes some leave). " +
       "Your audience is capped by your skill: past it, gathering never draws anyone new.",
+    disposal: "Use the method the community chart stars for each job (the green ring).",
+    cracking: "Your rig's brute-force strength sets the pace; guess the last letters yourself to save nerve.",
+    forgery: "Better projects unlock at 25 and 50; a critical fail can lose a tool, so keep a spare.",
+    scamming: "Rotate scam types (repeating one lowers responses) and cash out before suspicion builds.",
+    arson: "Follow the recipe's steps; accidental jobs need a Lighter, suspicious ones the Flamethrower.",
   };
+  const skillShown = () => !get("hideSkill", false);
+  const tapAdvice = b => { b.style.cursor = "help";
+    b.addEventListener("click", e => { if (!matchMedia("(hover: none)").matches) return; e.preventDefault(); e.stopPropagation(); showTip(b, b.title); }); };
   function pathChip(root, k) {
     if (k === "cardskimming") return skimPlan(root, k);
     const sk = values.crime_skill && values.crime_skill[k], host = nameEl(root, k);
     const had = root.querySelector(".ca-path"), s = sk == null ? null : Math.floor(sk);
-    if (s == null || s >= 100 || !host) { had?.remove(); return; }
-    if (had && had.dataset.sig === String(s)) return;
+    if (!skillShown() || (s != null && s >= 100) || !host) { had?.remove(); return; }
+    const sig = s == null ? "start" : String(s);
+    if (had && had.dataset.sig === sig) return;
     had?.remove();
     const b = $("span", "ca-badge ca-hud ca-path B");
-    b.dataset.sig = String(s); b.dataset.tab = k;
-    b.append($("span", "ca-t", "\u25b6"), $("span", "ca-v", `skill ${s}/100`));
-    b.title = `On your path: ${(values.crimes || {})[k] || "this crime"} skill ${sk} of 100.` + (ADVICE[k] ? ` ${ADVICE[k]}` : "");
+    b.dataset.sig = sig; b.dataset.tab = k;
+    b.append($("span", "ca-t", "\u25b6"), $("span", "ca-v", s == null ? "start" : `skill ${s}/100`));
+    b.title = (s == null ? `${(values.crimes || {})[k] || "This crime"}: just starting.` : `On your path: ${(values.crimes || {})[k] || "this crime"} skill ${sk} of 100.`) +
+      (ADVICE[k] ? ` ${ADVICE[k]}` : "");
+    tapAdvice(b);
     host.appendChild(b);
   }
   function skimPlan(root, k) {
     const sk = values.crime_skill && values.crime_skill[k], host = nameEl(root, k);
+    if (!skillShown()) { root.querySelectorAll(".ca-skim").forEach(e => e.remove()); return; }
     if (sk == null || !host) return;
     const s = Math.floor(sk), stage = s >= 100 ? "done" : s >= 25 ? "gas" : "build";
     const text = stage === "done" ? "skill 100" : stage === "gas" ? `Gas Station \u00b7 skill ${s}/100` : `skill ${s}/25`;
