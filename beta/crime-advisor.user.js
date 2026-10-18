@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.17
+// @version      2.2.18
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -583,7 +583,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.17";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.18";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -995,6 +995,12 @@ else (async function main() {
     .ca-panel .ca-upd a.ca-updgo{margin-left:auto;background:#2a78d6;color:#fff!important;text-decoration:none;border-radius:6px;padding:4px 10px;font-weight:600}
     .ca-panel .ca-upd a.ca-updnote{color:#9cc8ff!important}
     .ca-btn.ca-hasupd::after{content:"";position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#2a78d6;box-shadow:0 0 0 2px #1a1a19}
+    .ca-recipe{display:grid;gap:7px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,#2b1a0f,#1d1612);border:1px solid #4d2e18}
+    .ca-rhd{font:700 10.5px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffb27a}.ca-rhd span{text-transform:none;letter-spacing:0;color:#b8906f;font-weight:500}
+    .ca-step{display:grid;grid-template-columns:22px 58px minmax(0,1fr);align-items:center;gap:8px}
+    .ca-stepn{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#ff8a3d;color:#1a0d04;font:800 12px system-ui,sans-serif}
+    .ca-stepv{font:700 10.5px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffb27a}
+    .ca-stept{font:600 14px system-ui,sans-serif;color:#fff3e8;overflow-wrap:anywhere}.ca-stept .ca-qty{color:#ffd2ad;margin-right:2px}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
     .ca-prog{height:3px;border-radius:2px;background:#232321;overflow:hidden}.ca-prog span{display:block;height:100%;background:#2a78d6;transition:width .4s}
@@ -2071,7 +2077,9 @@ else (async function main() {
       const rowText = row.textContent || "", pct = +((rowText.match(/(\d{1,3})%/) || [])[1] ?? NaN);
       const short100 = needs.some(n => /total destruction/i.test(n)) && /COLLECT/.test(rowText) && pct < 100;
       const collect = k === "arson" && !short100 && /COLLECT/.test(rowText);  // (Torn's COLLECT button on the job)
-      const noFT = flameBanned(needs, v), tier = tierOf(v, best, short100, noFT, collect);
+      // (an accidental-fire job: the recipe just says Lighter and the grade is the job's own; no warning, no second
+      // opinion. Aaron, 2026-10-18: "they didn't need the bad advice plus better advice")
+      const noFT = flameBanned(needs, v), tier = tierOf(v, best, short100, false, collect);
       // (Arson only: a fire you can't finish fails; other crimes are a step at a time)
       const need = k !== "arson" || collect || short100 ? null : nerveFor(v), low = !!need && nv != null && need > nv;
       const picker = !!host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']");
@@ -2092,8 +2100,7 @@ else (async function main() {
       b.append($("span", "ca-t", TILE[tier]), val);
       const avg = values.overall;
       // (no hover text on a phone: PDA showed it on tap, repeating the card's first line)
-      if (!phone) b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
-        : `${TIERWORD[tier][0].toUpperCase()}${TIERWORD[tier].slice(1)}${avg && "SABC".includes(tier) ? `; your average is ${short(avg)}/nerve` : ""}` +
+      if (!phone) b.title = (`${TIERWORD[tier][0].toUpperCase()}${TIERWORD[tier].slice(1)}${avg && "SABC".includes(tier) ? `; your average is ${short(avg)}/nerve` : ""}` +
           (recipeOver(v) ? `, by the community recipe: your way lost ${short(-v.per_nerve)}/nerve` : "") +
           (star ? ". Torn shows a unique waiting here now" : "")) +
         (low ? `. Needs ${need} nerve; you have ${nv}` : "");
@@ -2242,16 +2249,23 @@ else (async function main() {
     // Arson: the recipe is what you act on, so it's on the card (Place / Ignite / Stoke), not behind "More"
     const c = v.community;
     const steps = c && c.steps ? c.steps.map(([s, t]) => [s, noFT && /^(Ignite|Stoke)$/.test(s) ? t.replace(/flamethrower/ig, "Lighter") : t]) : [];
-    if (steps.length) {
-      const box = $("div", "ca-body");
-      box.append(...kv(steps, "ca-kvl"));
-      box.title = "The community recipe";
+    if (steps.length) {  // the recipe as steps, in the order you do them (Aaron: "make that more visually useful")
+      const box = $("div", "ca-recipe"), hd = $("div", "ca-rhd", "Recipe ");
+      hd.append($("span", "", "\u00b7 the community's"));
+      box.title = "The community recipe (the Arsonist's Ledger at balaclava.app)";
+      box.append(hd);
+      steps.forEach(([s, t], i) => {
+        const r = $("div", "ca-step"), what = $("span", "ca-stept");
+        const m = t.match(/^(\d+)\s*[\u00d7x]?\s+(.*)$/);  // ("2 Gasoline": the quantity stands out)
+        if (m) what.append($("b", "ca-qty", `${m[1]}\u00d7`), ` ${m[2]}`); else what.append(t);
+        r.append($("span", "ca-stepn", String(i + 1)), $("span", "ca-stepv", s), what);
+        box.append(r);
+      });
       pop.append(box);
     }
     // pills: what you must know before you commit
     const ft = $("div", "ca-ft"), pill = (cls, t, tip) => { const p = $("span", `ca-pill ${cls}`, t); if (tip) p.title = tip; ft.append(p); };
     if (fellShort != null) pill("bad", "No payout", "It needs total destruction: 100%");
-    if (noFT) pill("warn", "\u26a0 Lighters only", "Accidental cause: the Flamethrower fails it");
     if (pk) {
       pill("go", `${VERBS[pk.method]} \u00b7 ${pk.p == null ? "?" : pc(pk.p)} \u00b7 ${Math.round(pk.nerve)} nerve`, "The method with the best expected $/nerve here (reliability: the community chart, updated by your results)");
       if (v.count && v.per_nerve < pk.ev) pill("bad", `Your way: ${short(v.per_nerve)}/n`, `Your ${v.count} ${v.unit} here, the ways you did them`);
