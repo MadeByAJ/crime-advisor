@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.9
+// @version      2.2.10
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -986,7 +986,7 @@ else (async function main() {
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
       .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
-      .ca-badge.ca-hud.ca-chip.onimg{position:absolute;right:3px;bottom:3px;margin:0;z-index:3;min-height:22px;box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.45)}
+      .ca-badge.ca-hud.ca-chip.onimg{position:absolute;right:3px;bottom:3px;margin:0;z-index:3;pointer-events:auto!important;cursor:pointer;min-height:22px;box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.45)}
       .ca-badge.ca-hud.ca-chip.lead{margin:0 6px 0 0;vertical-align:middle}.ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
     .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
@@ -1059,7 +1059,7 @@ else (async function main() {
     .ca-dig .ca-body{padding:0 0 10px;font-size:12px;color:#c3c2b7;display:grid;gap:4px}
     .ca-kv{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}.ca-kv span:last-child{text-align:right}
     .ca-card > .ca-body{display:grid;gap:4px;font-size:12px;color:#c3c2b7}.ca-kvl{display:grid;grid-template-columns:auto 1fr;gap:10px}.ca-kvl span:first-child{color:#8f8e86}
-    .ca-pop.ca-sheet{left:0!important;right:0;bottom:0;top:auto!important;width:auto;max-height:75vh;border-radius:14px 14px 0 0;
+    .ca-pop.ca-sheet{left:0!important;right:0;bottom:var(--ca-bottom,0px);top:auto!important;width:auto;max-height:calc(75vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;
       padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
     .ca-meth{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:4px}
     .ca-meth th{color:#8f8e86!important;font:500 11px system-ui,sans-serif!important;text-align:right;padding:2px 4px;background:none!important}.ca-meth th:first-child{text-align:left}
@@ -2052,7 +2052,10 @@ else (async function main() {
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
       // (a phone's name box that cuts off what doesn't fit, Arson's place line: the chip goes first, so the name is what
       // gets shortened, not the chip: "Travel Agent ..." hid it; Aaron's iPhone)
-      if (slot.dataset.caThumb) b.classList.add("onimg");  // (on the row's picture: a phone)
+      if (slot.dataset.caThumb) {  // (on the row's picture: a phone; the tap is ours, not the row's)
+        b.classList.add("onimg");
+        for (const ev of ["pointerdown", "touchstart", "mousedown"]) b.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+      }
       else if (phone && !picker && getComputedStyle(slot).overflow !== "visible") { slot.insertBefore(b, slot.firstChild); b.classList.add("lead"); }
       if (picker) pickRight(b, host);
       if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
