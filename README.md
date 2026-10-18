@@ -64,7 +64,8 @@ Numbers are net: materials you used are subtracted, and item rewards are counted
 | Torn PDA (2.1) | Works in the app: on a phone each chip is its grade, and a box beside Torn's chat bar shows the one thing to do |
 | Community numbers (2.2) | Opt in to see what players at your skill earn per option (below) |
 | Options you haven't tried (2.2.20) | A starting estimate from Emforus's Crime Profitability Index (marked ~), so they're graded and can show up in Best crimes; a newly unlocked option is marked Just unlocked |
-| Disposal and Arson (2.2.19) | Disposal recommends the chart's best method unless your record clearly beats it; Arson recipes as numbered steps |
+| Disposal and Arson (2.2.27) | Disposal rings the method with the best expected $/nerve (the Crime Profitability Index's figure until your own record takes over; ★ marks where the job's one-time unique is); Arson recipes as numbered steps, with fuels that work below skill 80 |
+| Forgery levelling (2.2.26) | Below skill 100, Forgery projects are graded for levelling: the fewest critical fails per step, a grade lower if one loses tools; projects you haven't unlocked show their level |
 | Update notices (2.2.14) | Opt in to an "Update ready" note in the panel |
 | Lighter | Faster loading, backs off when Torn is busy, gentler on slow computers, and a reload no longer interrupts it |
 
