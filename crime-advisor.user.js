@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.2
+// @version      2.2.3
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1293,7 +1293,8 @@ else (async function main() {
     cb.type = "checkbox"; cb.checked = !!get("autoOpen", false);
     cb.onchange = () => set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
-    f.append(auto, commUi(), aboutBrowser());
+    if (!matchMedia("(max-width:600px)").matches) f.append(auto);  // (no "Open automatically" on a phone)
+    f.append(commUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
   }
@@ -1349,7 +1350,9 @@ else (async function main() {
     const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
     d.open = aboutOpen;
     d.ontoggle = () => { aboutOpen = d.open; };
-    const rows = diagnostics(), dl = $("div", "ca-diag");
+    let rows;  // (never let a diagnostic break the panel)
+    try { rows = diagnostics(); } catch (e) { rows = [["Diagnostics", `unavailable: ${e.message}`]]; }
+    const dl = $("div", "ca-diag");
     for (const [k, v] of rows) { const r = $("div", "ca-kv"); r.append($("span", "", k), $("span", "", v)); dl.append(r); }
     const copy = $("button", "ca-link", "Copy for a bug report");
     copy.type = "button";
@@ -1521,7 +1524,11 @@ else (async function main() {
     return w;
   }
 
-  if (onCrimes && get("key", "") && get("autoOpen", false)) btn.onclick();  // (the footer's "Open automatically")
+  // (the footer's "Open automatically": once the whole script has started. Opened straight away, the panel read the
+  // page tracking before it existed, threw, and stuck as a bare title under Torn's chat bar; Aaron's iPhone, 2.2.2)
+  // (not on a phone: there the panel is a sheet over the page, so it opens only when you ask; Aaron, 2026-10-18)
+  const phoneNow = () => matchMedia("(max-width:600px)").matches;
+  if (onCrimes && !phoneNow() && get("key", "") && get("autoOpen", false)) setTimeout(() => { if (!panel) btn.onclick(); }, 0);
 
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------
   // Crime Advisor's own additions: the page watcher and the readers skip them, so a chip going in or changing doesn't

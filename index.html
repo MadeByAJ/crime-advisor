@@ -145,7 +145,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.2.2</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.2.3</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -239,11 +239,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 2491 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 2498 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.2
+// @version      2.2.3
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1535,7 +1535,8 @@ else (async function main() {
     cb.type = "checkbox"; cb.checked = !!get("autoOpen", false);
     cb.onchange = () =&gt; set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
-    f.append(auto, commUi(), aboutBrowser());
+    if (!matchMedia("(max-width:600px)").matches) f.append(auto);  // (no "Open automatically" on a phone)
+    f.append(commUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
   }
@@ -1591,7 +1592,9 @@ else (async function main() {
     const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
     d.open = aboutOpen;
     d.ontoggle = () =&gt; { aboutOpen = d.open; };
-    const rows = diagnostics(), dl = $("div", "ca-diag");
+    let rows;  // (never let a diagnostic break the panel)
+    try { rows = diagnostics(); } catch (e) { rows = [["Diagnostics", `unavailable: ${e.message}`]]; }
+    const dl = $("div", "ca-diag");
     for (const [k, v] of rows) { const r = $("div", "ca-kv"); r.append($("span", "", k), $("span", "", v)); dl.append(r); }
     const copy = $("button", "ca-link", "Copy for a bug report");
     copy.type = "button";
@@ -1763,7 +1766,11 @@ else (async function main() {
     return w;
   }
 
-  if (onCrimes &amp;&amp; get("key", "") &amp;&amp; get("autoOpen", false)) btn.onclick();  // (the footer's "Open automatically")
+  // (the footer's "Open automatically": once the whole script has started. Opened straight away, the panel read the
+  // page tracking before it existed, threw, and stuck as a bare title under Torn's chat bar; Aaron's iPhone, 2.2.2)
+  // (not on a phone: there the panel is a sheet over the page, so it opens only when you ask; Aaron, 2026-10-18)
+  const phoneNow = () =&gt; matchMedia("(max-width:600px)").matches;
+  if (onCrimes &amp;&amp; !phoneNow() &amp;&amp; get("key", "") &amp;&amp; get("autoOpen", false)) setTimeout(() =&gt; { if (!panel) btn.onclick(); }, 0);
 
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------
   // Crime Advisor's own additions: the page watcher and the readers skip them, so a chip going in or changing doesn't
