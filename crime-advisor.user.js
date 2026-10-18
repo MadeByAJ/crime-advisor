@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.28
+// @version      2.3.0
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -439,16 +439,24 @@ const CA = (() => {
     // Materials are logged in the same second as the step they were for: charged to what that step was done to (and,
     // for disposal, to how: burning's gasoline, dissolving's acid).
     const stepAt = new Map(), how = new Map(), lvlSteps = new Map();
+    // (for Stats: each TCT day's net and nerve, every level change, and the unique outcomes found)
+    const daily = {}, skillHist = {}, uqFound = [], dayOf = ts => Math.floor(ts / DAY);
+    const dayAdd = (ts, net, nerve) => { const d = daily[dayOf(ts)] ||= [0, 0]; d[0] += net; d[1] += nerve; };
     for (const e of events) if (e.isStep && KIND_CRIMES.has(e.crime)) stepAt.set(`${e.ts}|${e.crime}`, [e.detail || e.action, e.action]);
     for (const e of events) {
       if (e.d && e.d.skill_level != null && e.d.crime && !e.isStep) {  // (all time: the latest level)
         const k = SKILL_TAB[slug(String(e.d.crime))] || slug(String(e.d.crime));  // (the log says "skimming")
         if (!skills[k] || e.ts >= skills[k][0]) skills[k] = [e.ts, +e.d.skill_level];
+        (skillHist[k] ||= []).push([e.ts, +e.d.skill_level]);
       }
       if (e.ts < since) continue;
       const cid = e.crime;
       if (e.isStep) {
         const c = cid ?? 0;
+        const worth = ks => [...items(e.d, ks)].reduce((a, [i, n]) => a + (price[i] || 0) * n, 0);
+        if (c) dayAdd(e.ts, e.money + worth(["items_gained"]) - worth(["items_lost"]), e.nerve);
+        if (e.unique && c) uqFound.push({ c, place: e.detail || e.action, action: String(e.d.crime_action || ""),
+                                          items: [...items(e.d, ["items_gained"])].map(([i]) => i), money: e.money });
         add(crimes[c] ||= blank(), e);
         add(get(actions, `${c}|${e.action}|${c === SCAMMING ? e.detail : ""}`), e);
         if (KIND_CRIMES.has(c)) { add(get(kinds, `${c}|${e.detail || e.action}`), e); take(`${c}|${e.detail || e.action}`, e); }
@@ -465,6 +473,7 @@ const CA = (() => {
       } else if (COST_TYPES.has(e.type) && cid) {
         const cost = [...items(e.d, ["items_used", "items_added"])].reduce((s, [i, n]) => s + (price[i] || 0) * n, 0);
         (crimes[cid] ||= blank()).itemCost += cost;
+        dayAdd(e.ts, -cost, 0);
         const at = [0, -1, 1, -2, 2].map(dt => stepAt.get(`${e.ts + dt}|${cid}`)).find(Boolean);
         if (at && KIND_CRIMES.has(cid)) {
           get(kinds, `${cid}|${at[0]}`).itemCost += cost;
@@ -553,7 +562,7 @@ const CA = (() => {
     }
     const total = finish(Object.values(crimes).reduce((t, c) => { for (const f of ["attempts", "nerve", "success", "fail", "crit", "money", "itemValue", "itemCost", "uniques", "uniqueNerve", "uniqueNet"]) t[f] += c[f]; return t; }, blank()));
     return { total, crimes: Object.values(byCrime).sort((a, b) => b.nerve - a.nerve), kinds: out, events: events.length,
-             skill: Object.fromEntries(Object.entries(skills).map(([k, [, s]]) => [k, s])) };
+             skill: Object.fromEntries(Object.entries(skills).map(([k, [, s]]) => [k, s])), daily, skill_hist: skillHist, uniques_found: uqFound };
   }
 
   // What the page badges: for each crime tab, the names to look for and your $/nerve for each.
@@ -667,14 +676,46 @@ const CA = (() => {
              crime_skill: rep.skill || {} };
   }
 
+  // Unique outcomes: what each gives and what it needs (the Torn wiki and Emforus's guides, read 2026-10-18; a tester
+  // asked for "the hard to get uniques ... the crime and requirements"). Each: [place, gives, needs, match]; match is the
+  // item ids that tell it was found, "$" a cash unique at that place, "job:<name>" an Arson job, or null when the logs
+  // can't tell (ammo, a crew, a district opening up). Checked against Aaron's 204 uniques: every one placed.
+  const UQ = {
+    "searchforcash": [["Trash", "4 Bag of Candy Kisses", "skill 1", [527]], ["Trash", "10 Morphine", "skill 25", [66]], ["Subway", "Glasses", "rush hour", [564]], ["Subway", "Empty Box + 10 Card Skimmers", "the Lost and Found Office Key (from skill 85)", [1125]], ["Subway", "Torn City Times + Zip Wallet", "ridership 23% or less", [1082]], ["Subway", "3 Ecstasy + 2 LSD", "skill 30, rush hour", [199]], ["Subway", "Laptop", "skill 50, peak or rush hour", [154]], ["Subway", "3 Vicodin + Xanax", "skill 60, ridership 23% or less", [205]], ["Subway", "Lost and Found Office Key", "skill 85", [893]], ["Junkyard", "Mountain Bike", "skill 5, crushing 49% or less", [566]], ["Junkyard", "Metal Detector (opens the Beach)", "skill 30", [852]], ["Junkyard", "4 Black + 3 Red + 3 White spray cans", "skill 30, crushing 75% or less", [856, 862]], ["Junkyard", "Kevlar Gloves", "skill 40, crushing 50% or more", [640]], ["Junkyard", "Stash Box", "skill 40, crushing 75% or more", [1239]], ["Junkyard", "High-Speed Drive", "skill 60, crushing 23% or less", [565]], ["Junkyard", "$50k-80k", "skill 80, crushing 50-75%", "$"], ["Beach", "Fishing Rod + Trout", "skill 10, low tide (60%+)", [616]], ["Beach", "6 Beer, Sports Shades, Proda Sunglasses, Blanket", "skill 10, low tide", [1235]], ["Beach", "2 First Aid Kit", "skill 20, low tide", [67]], ["Beach", "Cemetery Key (opens the Cemetery)", "skill 50", [853]], ["Beach", "Coconut Bra", "skill 50, high tide (40% or less)", [430]], ["Beach", "Cork Hat", "skill 50", [935]], ["Beach", "Snorkel, Flippers, Wetsuit, Diving Gloves", "skill 66, high tide", [621]], ["Beach", "Sextant", "skill 90, tide 40%+", [408]], ["Beach", "Silver Bead", "skill 95, high tide", [899]], ["Cemetery", "3 Speed", "skill 80, groundskeepers off", [204]], ["Cemetery", "Golden Wreath", "skill 80, groundskeepers on (weekdays 9-5)", [603]], ["Cemetery", "WWII Helmet", "skill 90, groundskeepers off", [641]], ["Cemetery", "$100k-198k", "skill 100", "$"], ["Fountain", "4 Cannabis", "skill 75", [196]], ["Fountain", "Lucky Quarter", "skill 80", [900]], ["Fountain", "PCP", "skill 85, collections 25%+", [201]], ["Fountain", "Pink, Purple, Blue, Orange spray cans", "skill 90", [858, 863]], ["Fountain", "2 Ecstasy", "skill 100, collections 50%+ (late in the month)", [197]]],
+    "bootlegging": [["Selling", "500 Special Ammo", "skill 55", null], ["Selling", "Lottery Voucher", "skill 70", [369]], ["Selling", "Rosary/Prayer Beads", "skill 85", [819]], ["Selling", "Erotic DVD", "skill 100", [366]]],
+    "shoplifting": [["Sally's Sweet Shop", "Jawbreaker", "skill 20, cameras off", [586]], ["Sally's Sweet Shop", "Empty Box, 2 Choc Truffles, 2 Jawbreaker", "skill 40, cameras on", [372]], ["Sally's Sweet Shop", "2 Pixie Sticks", "skill 60, cameras off", [151]], ["Sally's Sweet Shop", "4 Bags of Sherbet", "skill 70, cameras on", [587]], ["Sally's Sweet Shop", "Tin of Treats", "skill 80, cameras off", [1298]], ["Bits 'n' Bobs", "8 Champagne", "skill 1, cameras off", [181]], ["Bits 'n' Bobs", "Cut-Throat Razor + Shaving Foam", "skill 1", [1217]], ["Bits 'n' Bobs", "Flashlight", "skill 20", [1351]], ["Bits 'n' Bobs", "Duct Tape", "skill 30, cameras off", [578]], ["Bits 'n' Bobs", "24 Beer", "skill 60", [180]], ["Bits 'n' Bobs", "$13k-57k", "skill 80, cameras off", "$"], ["Bits 'n' Bobs", "Mountain Bike", "skill 90", [566]], ["TC Clothing", "Raincoat", "skill 20, checkpoint off", [940]], ["TC Clothing", "Fisherman Hat + Fishing Rod", "skill 30", [937]], ["TC Clothing", "Tailor's Dummy + Scissors", "skill 40, cameras off", [418]], ["TC Clothing", "Trench Coat", "skill 50", [107]], ["TC Clothing", "Mackintosh", "skill 60", [947]], ["TC Clothing", "Coat Hanger", "skill 70, notoriety at max", [96]], ["TC Clothing", "Bush Hat", "skill 80, cameras off and checkpoint on", [931]], ["TC Clothing", "Crop Top, Coin Purse, Lipstick", "skill 90", [936]], ["TC Clothing", "Poncho", "skill 100, checkpoint off", [945]], ["Super Store", "DSLR Camera", "skill 1, checkpoint off", [1383]], ["Super Store", "DVD Player + Erotic DVD", "skill 1, cameras and checkpoint off", [41]], ["Super Store", "Tracking Device", "skill 20", [572]], ["Super Store", "Wireless Dongle", "skill 40, cameras off", [579]], ["Super Store", "Ergonomic Keyboard", "skill 60, checkpoint off", [571]], ["Super Store", "High-Speed Drive", "skill 80", [565]], ["Super Store", "Laptop", "skill 100", [154]], ["Super Store", "Receipt + Voice Recorder", "conditions not published", [1550]], ["Pharmacy", "Serotonin + 4 Syringes", "skill 1, cameras and checkpoint off", [1094]], ["Pharmacy", "Melatonin", "skill 5, cameras on", [464]], ["Pharmacy", "Tyrosine", "skill 10, cameras off and checkpoint on", [814]], ["Pharmacy", "Box of Medical Supplies", "skill 100, checkpoint on", [365]], ["Pharmacy", "Epinephrine", "skill 100, checkpoint off and cameras on", [463]], ["Cyber Force", "3-9 Points", "skill 1, guard on break", null], ["Cyber Force", "$220k-299k", "skill 1, cameras and guard on", "$"], ["Cyber Force", "RF Detector", "skill 1, cameras off", [1380]], ["Cyber Force", "3 HPCPU", "skill 5, cameras off", [1302]], ["Cyber Force", "5 CPU, HPCPU, 2 Fans, Water Block", "skill 15, cameras off and guard on break", [1304]], ["Cyber Force", "Office Chair", "skill 60, guard on break", [1354]], ["Jewelry Store", "Magnifying Glass", "skill 1", [1346]], ["Jewelry Store", "Gold Ring + Graver", "skill 1", [1328]], ["Jewelry Store", "Diamond Ring + Grinding Stone", "skill 1, cameras off", [1334]], ["Jewelry Store", "2 Gold Ring, Drill, Polishing Pad", "skill 1, cameras off", [1338]], ["Jewelry Store", "Vanity Hand Mirror", "skill 10, cameras off and guard on break", [422]], ["Jewelry Store", "12 Gold Tooth", "skill 20, guard on", [1282]], ["Jewelry Store", "Diamond Ring + Latex Gloves", "skill 40, guard on", [633]], ["Jewelry Store", "Raw Ivory", "skill 40, cameras and guard on", [358]], ["Jewelry Store", "Diamond Bladed Knife", "skill 60, guard on break", [614]], ["Jewelry Store", "Cluster Ring", "skill 100, zero notoriety, cameras off and guard on break (rare overlap: leave the store alone ~8 h first)", [1465]], ["Big Al's Gun Shop", "2,500 Special Ammo", "skill 1, cameras off and guards on break", null], ["Big Al's Gun Shop", "Full Body Armor", "skill 1, cameras off and guards on break", [49]], ["Big Al's Gun Shop", "9 Ninja Stars", "skill 30, cameras off", [239]], ["Big Al's Gun Shop", "Desert Eagle", "skill 40, cameras and guards on", [20]], ["Big Al's Gun Shop", "6 Stick Grenades", "skill 50, guards on break", [221]], ["Big Al's Gun Shop", "Steyr AUG", "skill 60, guards on break", [30]], ["Big Al's Gun Shop", "4 Throwing Knives", "skill 70, cameras off", [257]], ["Big Al's Gun Shop", "8 HEG", "skill 80, cameras and guards on", [242]], ["Big Al's Gun Shop", "Box of Grenades", "skill 100", [364]]],
+    "pickpocketing": [["Businessman", "2 Speed", "any", [204]], ["Businesswoman", "Glasses", "any", [564]], ["Classy lady", "Pair of High Heels", "on the phone", [346]], ["Cyclist", "Mountain Bike", "skill 100, cycling, a Cut-Throat Razor", [566]], ["Drunk man", "6 Beer", "a Cut-Throat Razor", [180]], ["Drunk woman", "2 Pumpkin Brew", "a Cut-Throat Razor", [531]], ["Elderly man", "Bag of Tootsie Rolls", "a Cut-Throat Razor", [528]], ["Elderly woman", "Opium", "any", [200]], ["Gang member", "Red/Purple/Blue spray cans + Wire Cutters", "loitering, a Cut-Throat Razor", [981]], ["Homeless person", "4 Morphine, Soap on a Rope, 3 Bricks, Toothbrush", "any", [182]], ["Jogger", "Can of Crocozade", "walking, a Cut-Throat Razor", [987]], ["Junkie", "Ecstasy, LSD, PCP, Speed", "stumbling", [199]], ["Laborer", "Megaphone", "walking", [1353]], ["Mobster", "$561k-772k", "skill 100, walking, a Cut-Throat Razor", "$"], ["Police officer", "Billfold + Police Badge", "a running officer", [1350]], ["Postal worker", "Lottery Voucher", "distracted", [369]], ["Rich kid", "Six-Pack of Alcohol", "listening to music, a Cut-Throat Razor", [817]], ["Sex worker", "Thong", "soliciting", [347]], ["Student", "Laptop, Cannabis, Coin Purse, Cell Phone", "a Cut-Throat Razor", [1096]], ["Thug", "PCP, Cut-Throat Razor, Billfold", "loitering, male", [567]], ["Young man", "Ketamine", "any", [198]], ["Young woman", "Ecstasy", "any", [197]]],
+    "burglary": [["Tool Shed", "Flashlight", "Lockpicks on you", [1351]], ["Beach Hut", "$127k-399k", "a Jemmy on you", "$"], ["Bungalow", "Soap on a Rope, Xanax, Vitamins, Toothbrush", "a Window Breaker on you", [1272]], ["Mobile Home", "Claymore Mine, Luger, WWII Helmet", "Rope on you", [489]], ["Cottage", "Jacket + Lawyer's Business Card", "a Window Breaker on you, from skill 3", [368]], ["Apartment", "PC, High-Speed Drive, Blank DVDs", "a Credit Card on you, from skill 14", [61]], ["Suburban Home", "Lottery Voucher", "a Window Breaker on you, from skill 22", [369]], ["Secluded Cabin", "Cuban Cigars, Windproof Lighter, Cigar Cutter", "a Jemmy on you, from skill 30", [1223]], ["Farmhouse", "Turkey Baster + Bull Semen", "a Window Breaker on you, from skill 38", [1247]], ["Lake House", "2 Box of Medical Supplies", "a Jemmy on you, from skill 46", [365]], ["Luxury Villa", "Persian Rug", "a Window Breaker on you, from skill 69", [1243]], ["Manor House", "Chandelier", "Lockpicks on you, from skill 100", [1245]], ["Funeral Parlor", "Empty Blood Bag, Bone Saw, Bone, Cassock", "Lockpicks on you, from skill 25", [1313]], ["Self-Storage Facility", "4 Opium", "a Skeleton Key on you, from skill 25", [200]], ["Market", "Fanny Pack", "a Jemmy on you, from skill 25", [574]], ["Postal Office", "Stamp Collection", "a Credit Card on you, from skill 25", [1260]], ["Cleaning Agency", "Tumble Dryer", "a Jemmy on you, from skill 27", [575]], ["Barbershop", "Cut-Throat Razor", "Lockpicks on you, from skill 35", [567]], ["Liquor Store", "Six-Pack of Alcohol", "a Skeleton Key on you, from skill 43", [817]], ["Dentists Office", "Latex Gloves + 6 Gold Teeth", "a Credit Card on you, from skill 47", [1282]], ["Chiropractors", "3 Xanax", "a Window Breaker on you, from skill 56", [206]], ["Recruitment Agency", "Jade Buddha + Bowling Trophy", "a Window Breaker on you, from skill 77", [275]], ["Advertising Agency", "2 Can of Damp Valley", "a Skeleton Key on you, from skill 100", [986]], ["Dockside Warehouse", "Erotic DVD", "Lockpicks on you, from skill 50", [366]], ["Farm Storage Unit", "Cattle Prod", "a Jemmy on you, from skill 50", [1257]], ["Shipyard", "Anchor", "a Jemmy on you, from skill 50", [1250]], ["Printing Works", "Hot Foil Stamper", "a Window Breaker on you, from skill 52", [1315]], ["Brewery", "Empty Box + 6 Stinky Swamp Punch", "Rope on you, from skill 60", [541]], ["Truckyard", "Can of Munster", "a Skeleton Key on you, from skill 68", [530]], ["Old Factory", "Empty Box + Small Explosive Device", "a Window Breaker on you, from skill 76", [380]], ["Slaughterhouse", "Bloody Apron", "a Credit Card on you, from skill 84", [1291]], ["Paper Mill", "$115k-236k", "a Skeleton Key on you, from skill 92", "$"], ["Foundry", "Yasukuni Sword", "a Jemmy on you, from skill 96", [146]], ["Fertilizer Plant", "Truck Nuts", "Lockpicks on you, from skill 100", [1206]]],
+    "disposal": [["Building Debris", "LSD, 2 Vicodin, 2 Xanax, 3 Permanent Markers", "Abandon it", [1289]], ["General Waste", "Bon Bons, Pixie Sticks, Candy Kisses, Tootsie Rolls", "Abandon it", [37]], ["Old Furniture", "Hard Drive, eCPU, CPU, HPCPU", "Bury it", [45]], ["Broken Appliance", "Stash Box", "Sink it", [1239]], ["Documents", "2 Box of Medical Supplies", "Burn them", [365]], ["Vehicle", "$150k-160k", "Abandon it (Bleach + Paper Towels)", "$"], ["Industrial Waste", "250 Special Ammo", "Bury it", null], ["Firearm", "M249 SAW", "Bury it (a rare job)", [31]], ["Murder Weapon", "Diamond Bladed Knife", "Sink it (a rare job)", [614]], ["Body Part", "Combat Gloves", "Dissolve it (a rare job)", [654]], ["Dead Body", "Epinephrine, Melatonin, Serotonin, Tyrosine", "Abandon it", [463]]],
+    "graffiti": [["East Side", "12 Beer", "reputation 1", [180]], ["East Side", "4 Grenades, 2 HEG, 6 Pepper Spray", "reputation 2", [392]], ["East Side", "6 Morphine", "reputation 3", [66]], ["East Side", "Ecstasy, Ketamine, 2 Shrooms, 6 Vicodin", "reputation 4", [203]], ["East Side", "Paint Mask", "skill 35", [979]], ["East Side", "$126k-160k", "reputation 5, skill 100", "$"], ["East Side", "Join a crew", "reputation 5, skill 70", null], ["East Side", "Opens the Residential District", "skill 50", null], ["West Side", "2 First Aid Kits + 6 Small First Aid Kits", "reputation 1", [68]], ["West Side", "12 Cannabis", "reputation 2", [196]], ["West Side", "6 HEG", "reputation 3", [242]], ["West Side", "Ladder", "skill 15", [980]], ["West Side", "$100,000", "reputation 4, skill 77, a crew", "$"], ["West Side", "$120k-160k", "reputation 5", "$"], ["West Side", "Opens the Red-Light District", "skill 50", null], ["North Side", "Cricket Bat", "reputation 1", [438]], ["North Side", "12 Beer + 5 Fireworks", "reputation 2", [246]], ["North Side", "$76k-85k", "reputation 3", "$"], ["North Side", "Police Vest, Taser, Smoke Grenade", "reputation 4", [175]], ["North Side", "Wire Cutters", "skill 25", [981]], ["North Side", "2-5 Points", "skill 95", null], ["North Side", "Join a crew", "reputation 5, skill 70", null], ["Residential District", "$30k-49k", "reputation 1", "$"], ["Residential District", "$52k-64k", "reputation 2", "$"], ["Residential District", "$65k-80k", "reputation 3", "$"], ["Residential District", "$90k-120k", "reputation 4", "$"], ["Residential District", "$120k-145k", "reputation 5", "$"], ["Residential District", "$150,000", "skill 100", "$"], ["Red-Light District", "4 Morphine", "reputation 1", [66]], ["Red-Light District", "800 Special Ammo", "reputation 2", null], ["Red-Light District", "PCP", "reputation 3", [201]], ["Red-Light District", "2 Opium + 2 Empty Blood Bags", "reputation 4", [731]], ["Red-Light District", "Box of Medical Supplies", "reputation 5", [365]], ["Red-Light District", "Join a crew (opens the City Center and the Financial District)", "reputation 5, skill 70", null], ["Financial District", "400 Special Ammo", "a crew, reputation 1", null], ["Financial District", "25 Card Skimmers", "a crew, reputation 2", [1125]], ["Financial District", "2 Speed", "a crew, reputation 3", [204]], ["Financial District", "Can of Goose Juice", "a crew, reputation 4", [985]], ["Financial District", "Neumune Tablet", "a crew, reputation 5", [361]], ["City Center", "High-Speed Drive + 20 Blank DVDs", "a crew, reputation 1", [956]], ["City Center", "Box of Medical Supplies", "a crew, reputation 2", [365]], ["City Center", "4 Molotov Cocktails", "a crew, reputation 3", [742]], ["City Center", "4 Sake, 4 Tequila, 2 Pumpkin Brew, 2 Kandy Kane", "a crew, reputation 4", [294]], ["City Center", "$500,000", "a crew, reputation 5 (decays fastest)", "$"]],
+    "arson": [["Shack", "contact Chase Swindlehurst", "skill 1: a few Gasoline", "job:Cut to the Chase"], ["Bordello", "contact Marvelous Mudenda", "skill 5: 3-4 Gasoline", "job:Hell Fire"], ["Dental Surgery", "Oxygen", "skill 5: plenty of Gasoline", "job:A Bitter Taste"], ["Barn", "Potassium Nitrate", "skill 10: a lot of Oxygen", "job:The Bolted Horse"], ["Gas Station", "Diesel", "skill 15: start with Oxygen, dampen at once", "job:Blown to High Heaven"], ["Firework Store", "Magnesium", "skill 20: Gasoline + Potassium Nitrate; plant a Glitter Bomb", "job:Sky High Prices"], ["Restroom", "Methane", "skill 25: can't fail", "job:Shit Happens"], ["Recording Studio", "Molotov Cocktail", "skill 30: 4 Diesel then dampen late", "job:Roast Beef"], ["Aircraft Hangar", "Kerosene", "skill 40: Diesel or Methane, then Oxygen", "job:Plane and Simple"], ["Bookies", "contact Denise David", "skill 48: Diesel + Magnesium, stoke Diesel", "job:Improving the Odds"], ["Clock Tower", "contact Ethan McChad", "skill 50: Diesel + Magnesium, stoke Diesel", "job:Cooking Time"], ["Foundry", "Thermite", "skill 50: low flammability, lots of time", "job:Hot Under the Collar"], ["Raceway", "Sand", "skill 60: Kerosene + 1 Potassium Nitrate, stoke Methane", "job:Finish Line"], ["Homeless Camp", "Hydrogen", "skill 70: 3 Kerosene, Methane stokes", "job:Bummed Out"], ["Pest Control Hub", "Flamethrower", "skill 80: lots of Oxygen; total destruction", "job:Bugging Me"], ["Fire Station", "Fire Extinguisher", "skill 90: 2 Thermite + 3 Kerosene + Flamethrower", "job:Stop, Drop and Lol"]]
+  };
+  // Which are found, from the uniques in your logs (report's uniques_found): same place first, then anywhere in the crime
+  // (two passes, so an item two places give is claimed by the right one).
+  function uniqueStatus(found, k) {
+    const list = UQ[k];
+    if (!list) return null;
+    const cid = +Object.keys(NAMES).find(c => slug(NAMES[c]) === k), mine = found.filter(u => u.c === cid), used = new Set();
+    const at = (u, place) => { const a = gkey(u.place), b = gkey(place); return !!a && !!b && (a.includes(b) || b.includes(a)); };
+    const fits = (u, m, place) => m === "$" ? !u.items.length && u.money > 0 && at(u, place)
+      : typeof m === "string" ? gkey(u.action).includes(gkey(m.slice(4))) : u.items.some(i => m.includes(i));
+    const out = list.map(([place, gives, needs, m]) => ({ place, gives, needs, status: m ? "missing" : "unknown", m }));
+    for (const pass of [true, false]) for (const x of out) {
+      if (x.status !== "missing") continue;
+      const i = mine.findIndex((u, j) => !used.has(j) && fits(u, x.m, x.place) && (!pass || x.m === "$" || at(u, x.place) || typeof x.m === "string"));
+      if (i >= 0) { used.add(i); x.status = "found"; }
+    }
+    return out.map(({ m, ...x }) => x);
+  }
+
   return { classify, load, arsonJobs, scamConversations, community, report, pageValues, jobTitle, slug, NAMES, disposalMethods,
-           outcomes, leaders, SCOUT_ANY, gkey };
+           outcomes, leaders, SCOUT_ANY, gkey, uniqueStatus };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.28";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.0";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1042,6 +1083,19 @@ else (async function main() {
     .ca-ph{display:flex;align-items:center;gap:8px;margin:-4px -8px 6px 0}.ca-ph b{flex:1;font:700 14px system-ui,sans-serif;color:#f3f3f1}
     .ca-avg{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:#232321;color:#c3c2b7;font:600 11px system-ui,sans-serif;font-variant-numeric:tabular-nums;cursor:help;white-space:nowrap}
     .ca-avg i{display:inline-block;width:2px;height:10px;border-radius:1px;background:#c3c2b7;margin-right:6px}
+    .ca-panel .ca-ic{all:unset;cursor:pointer;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:#8f8e86;font:15px/1 system-ui,sans-serif}
+    .ca-panel .ca-ic.on{background:#2c2c2a;color:#9cc8ff}.ca-panel .ca-ic:focus-visible{outline:2px solid #9cc8ff}
+    .ca-vh{font:700 12px system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#9cc8ff;margin:2px 0 8px}
+    .ca-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 10px}
+    .ca-tile{background:#232321;border-radius:8px;padding:6px 9px}.ca-tile b{display:block;font:700 15px system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#f3f3f1}
+    .ca-panel .ca-tile span{font-size:11px;color:#8f8e86!important}.ca-panel .ca-tile b.neg{color:#ff9b8f}
+    .ca-chart{display:flex;align-items:flex-end;gap:2px;height:64px;margin:2px 0 2px;border-bottom:1px solid #3a3a37}
+    .ca-chart i{flex:1;background:#2fbf71;border-radius:2px 2px 0 0;min-height:1px}.ca-chart i.neg{background:#e5534b;align-self:flex-end}.ca-chart i.none{background:#2c2c2a}
+    .ca-axis{display:flex;justify-content:space-between;font-size:10px;color:#8f8e86;margin-bottom:10px}
+    .ca-uqlist{list-style:none;margin:0 0 6px;padding:2px 0 2px 10px;display:grid;gap:3px;border-left:2px solid #a8842e}
+    .ca-panel .ca-uqlist li{font-size:12px;line-height:1.35;color:#c3c2b7}.ca-panel .ca-uqlist b{color:#e3b341;font-weight:600}
+    .ca-panel .ca-uqbtn{all:unset;cursor:pointer;color:#e3b341;font-weight:600}.ca-panel .ca-uqbtn:focus-visible{outline:2px solid #9cc8ff}
+    .ca-bars li.ca-uqrow,.ca-panel .ca-uqlist li{display:block;min-height:0;margin:0}.ca-set{display:grid;gap:10px}.ca-setrow{display:grid;gap:4px}.ca-setrow > .ca-sec{margin:0}
     .ca-alert{background:#3a1d1b;border-radius:6px;padding:6px 8px;margin:0 0 8px;font-size:12px}
     .ca-yh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 4px}.ca-yh .ca-sec{margin:0;cursor:help}
     .ca-seg{display:inline-flex;background:#232321;border-radius:999px;padding:2px}
@@ -1204,6 +1258,9 @@ else (async function main() {
 
   // The panel, top to bottom: your average (the line every grade is measured against), best crimes here and elsewhere,
   // your crimes as bars (one number each), then the housekeeping in a quiet footer: logs, sync, the key.
+  // One panel, three views (Aaron, 2026-10-18): Advice (what to do), Stats (your progress and $/day) and Settings, picked
+  // by the icons in its header; tapping the open one goes back to Advice.
+  let view = "advice";
   function renderPanel() {
     if (!panel) return;
     panel.replaceChildren();
@@ -1212,20 +1269,29 @@ else (async function main() {
     x.type = "button"; x.setAttribute("aria-label", "Close");
     x.onclick = () => { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); };
     h.append($("b", "", "Crime Advisor"));
-    if (key && avg) {
+    if (key && avg && view === "advice") {
       const a = $("span", "ca-avg");
       a.append($("i"), `your avg ${short(avg)}/n`);
       a.title = "Your average $/nerve across all crimes. Grades are measured against it; it's the line on each bar below.";
       h.append(a);
     }
+    for (const [v, icon, label] of [["stats", "\ud83d\udcca", "Stats"], ["settings", "\u2699\ufe0f", "Settings"]]) {
+      if (v === "stats" && !(key && summary && summary.logs)) continue;
+      const b = $("button", `ca-ic${view === v ? " on" : ""}`, icon);
+      b.type = "button"; b.title = label; b.setAttribute("aria-label", label); b.setAttribute("aria-pressed", String(view === v));
+      b.onclick = e => { e.stopPropagation(); view = view === v ? "advice" : v; renderPanel(); panel.scrollTop = 0; };
+      h.append(b);
+    }
     h.append(x);
     panel.append(h);
+    if (view === "settings") { panel.append(settingsView(key)); return; }
+    if (view === "stats" && summary && summary.logs) { panel.append(statsView()); return; }
+    view = "advice";
     const upd = updNotice();
     if (upd) panel.append(upd);
     if (pop && pop.classList.contains("ca-inpanel")) panel.append(pop);  // (a crime's card, on a phone)
     if (priceDenied) {  // (a log-only key from 1.x: everything it found counts as $0 until it can read prices)
-      panel.append($("div", "ca-err ca-alert", "This key can't read item prices, so items count as $0. Make a new key below."));
-      keyOpen = true;
+      panel.append($("div", "ca-err ca-alert", "This key can't read item prices, so items count as $0. Make a new key in Settings."));
     }
     panel.append(bestBox);
     if (!key) {
@@ -1238,6 +1304,131 @@ else (async function main() {
     panel.append(footer(key));
   }
 
+  // Settings: the key, what shows on Torn's pages, the opt-ins, and the bug report
+  function settingsView(key) {
+    const box = $("div", "ca-set"), row = (title, ...kids) => { const r = $("div", "ca-setrow"); r.append($("div", "ca-sec", title), ...kids); return r; };
+    box.append($("div", "ca-vh", "Settings"));
+    // the key
+    const ks = $("div", "ca-frow"), info = $("span", "ca-muted", !key ? "No key yet" : pdaKey && key === pdaKey ? "Torn PDA's key" : "Your key is saved in this browser");
+    const tog = $("button", "ca-link", keyOpen ? "Hide" : key ? "Change" : "Add");
+    tog.type = "button"; tog.setAttribute("aria-expanded", String(keyOpen));
+    tog.onclick = e => { e.stopPropagation(); keyOpen = !keyOpen; keyErr = ""; renderPanel(); };
+    ks.append(info, tog);
+    const kr = row("Key", ks);
+    if (keyOpen || priceDenied) kr.append(keyForm(key));
+    box.append(kr);
+    // the skill badge by each crime's title (Aaron: keep it, with a setting to hide it, or hide it at skill 100)
+    const seg = $("div", "ca-seg"), mode = skillMode();
+    for (const [v, l] of [["always", "Always"], ["until100", "Until skill 100"], ["off", "Off"]]) {
+      const b = $("button", v === mode ? "on" : "", l);
+      b.type = "button"; b.setAttribute("aria-pressed", String(v === mode));
+      b.onclick = e => { e.stopPropagation(); set("skillBadge", v); renderPanel(); schedule(); };
+      seg.append(b);
+    }
+    box.append(row("Skill badge and tips", seg, $("div", "ca-muted", "The \u25b6 badge by each crime's name: your skill and the crime's advice.")));
+    // on Torn's pages
+    const page = [];
+    if (!matchMedia("(max-width:600px)").matches) {  // (no "Open automatically" on a phone: it takes over the page)
+      const auto = $("label", "ca-auto"), cb = $("input");
+      cb.type = "checkbox"; cb.checked = !!get("autoOpen", false);
+      cb.onchange = () => set("autoOpen", cb.checked);
+      auto.append(cb, "Open this panel automatically on crime pages");
+      page.push(auto);
+    }
+    if (page.length) box.append(row("Panel", ...page));
+    box.append(row("Optional", commUi(), updUi()));
+    box.append(aboutBrowser());
+    return box;
+  }
+
+  // Stats: what crime has earned you per day, and how your skills are moving (Aaron, 2026-10-18: "a key stats viewer
+  // that let players see their progression and $/day from criming"). Days are Torn's (TCT, midnight UTC).
+  function statsView() {
+    const box = $("div", "ca-stats"), all = summary.all, daily = all.daily || {}, today = Math.floor(Date.now() / 86400000);
+    box.append($("div", "ca-vh", "Your crime stats"));
+    const days = Object.keys(daily).map(Number).sort((a, b) => a - b), first = days.length ? days[0] : today;
+    const sum = (from, to) => { let net = 0, nerve = 0; for (let d = from; d <= to; d++) if (daily[d]) { net += daily[d][0]; nerve += daily[d][1]; } return [net, nerve]; };
+    const [t0] = sum(today, today), [w] = sum(today - 6, today), [m, mn] = sum(today - 29, today), [a, an] = sum(first, today);
+    const span = Math.max(1, today - first + 1);
+    const tiles = $("div", "ca-tiles"), tile = (n, label, tip) => {
+      const t = $("div", "ca-tile"), b = $("b", n < 0 ? "neg" : "", `${n < 0 ? "-" : ""}${short(Math.abs(n))}`);
+      t.append(b, $("span", "", label)); if (tip) t.title = tip; tiles.append(t);
+    };
+    tile(t0, "today", "Since midnight TCT");
+    tile(w / 7, "a day, 7 days");
+    tile(m / 30, "a day, 30 days", `${short(m)} in 30 days, ${mn.toLocaleString()} nerve (${mn ? short(m / mn) : "0"}/nerve)`);
+    tile(a / span, "a day, all time", `${short(a)} over ${span.toLocaleString()} days since your first crime log, ${an.toLocaleString()} nerve`);
+    box.append($("div", "ca-sec", "Crime income"), tiles);
+    // the last 30 days, a bar each (the net: cash and items at today's prices, less materials)
+    const chart = $("div", "ca-chart"), hi = Math.max(1, ...Array.from({ length: 30 }, (_, i) => Math.abs((daily[today - 29 + i] || [0])[0])));
+    for (let i = 0; i < 30; i++) {
+      const d = today - 29 + i, v = daily[d], bar = $("i", !v ? "none" : v[0] < 0 ? "neg" : "");
+      bar.style.height = `${v ? Math.max(2, Math.abs(v[0]) / hi * 100) : 2}%`;
+      bar.title = `${new Date(d * 86400000).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}: ` +
+        (v ? `${v[0] < 0 ? "-" : ""}${short(Math.abs(v[0]))} from ${v[1].toLocaleString()} nerve` : "no crimes");
+      chart.append(bar);
+    }
+    const axis = $("div", "ca-axis");
+    axis.append($("span", "", "30 days ago"), $("span", "", "today"));
+    box.append($("div", "ca-sec ca-sec2", "Each day, last 30"), chart, axis);
+    // skills: now, and the change over 30 days (from Torn's level-up and level-down logs)
+    const hist = all.skill_hist || {}, cut = Date.now() / 1000 - 30 * 86400, rows = [];
+    for (const [k, s] of Object.entries(all.skill || {})) {
+      const h = hist[k] || [], before = h.filter(([ts]) => ts <= cut).pop(), gained = before ? s - before[1] : s - ((h[0] || [0, s])[1] - 1);
+      rows.push({ k, s, gained: Math.max(-99, gained), name: (values && values.crimes && values.crimes[k]) || k });
+    }
+    rows.sort((x, y) => y.gained - x.gained || y.s - x.s);
+    const going = rows.filter(r => r.s < 100), maxed = rows.filter(r => r.s >= 100);
+    if (going.length) {
+      const ul = $("ul", "ca-bars ca-up");
+      for (const r of going) {
+        const li = $("li"), trk = $("span", "ca-bar"), fill = $("span", "sk"), right = $("span", "ca-bv ca-sk");
+        fill.style.width = `${Math.min(100, r.s)}%`;
+        trk.append(fill);
+        if (r.gained > 0 && r.s < 100) right.append($("span", "ca-muted", `+${r.gained} `));
+        right.append(String(r.s));
+        li.title = `${r.name}: skill ${r.s}/100` + (r.gained > 0 ? `, up ${r.gained} in 30 days` : "");
+        const a2 = $("a", "", r.name); a2.href = `/page.php?sid=crimes#/${r.k}`;
+        li.append(a2, trk, right);
+        ul.append(li);
+      }
+      const lab = $("div", "ca-sec ca-sec2", "Skills ");
+      lab.append($("span", "", "\u00b7 +30-day change"));
+      box.append(lab, ul);
+    }
+    if (maxed.length) {
+      const d = $("div", "ca-done");
+      d.append($("span", "ca-sec", "At 100 "), maxed.map(r => r.name).sort().join(", "));
+      box.append(d);
+    }
+    // uniques found across all crimes
+    let f = 0, tot = 0;
+    for (const k of Object.keys(UQ_TOTAL)) { const st = uqStatus(CA.slug(CA.NAMES[k])); if (st) { tot += st.length; f += st.filter(x => x.status === "found").length; } }
+    if (tot) box.append($("div", "ca-muted ca-none", `Unique outcomes found: ${f} of ${tot} (from your logs; open Uniques on the Advice view for what's left)`));
+    return box;
+  }
+  const uqStatus = k => summary && summary.all && summary.all.uniques_found ? CA.uniqueStatus(summary.all.uniques_found, k) : null;
+  // the uniques still to find in one crime, place by place, with what they need (Aaron: "tell the player what to look
+  // for and what conditions are required")
+  function uqListEl(k, place) {
+    const st = uqStatus(k);
+    if (!st) return null;
+    const near = p => !place || (CA.gkey(p).includes(CA.gkey(place)) || CA.gkey(place).includes(CA.gkey(p)));
+    const left = st.filter(x => x.status === "missing" && near(x.place));
+    // (the ones the logs can't tell, only while Torn's count says more are left than the list has)
+    const banner = (get("uq", {})[k] || null), more = !banner || banner[1] - banner[0] > st.filter(x => x.status === "missing").length;
+    const unk = more ? st.filter(x => x.status === "unknown" && near(x.place)) : [];
+    if (!left.length && !unk.length) return null;
+    const ul = $("ul", "ca-uqlist");
+    for (const x of left) { const li = $("li"); li.append($("b", "", place ? x.gives : `${x.place}: ${x.gives}`), ` \u2014 ${x.needs}`); ul.append(li); }
+    if (unk.length) {
+      const li = $("li", "ca-muted");
+      li.textContent = `${left.length ? "Also, maybe" : "Maybe"}: ${unk.map(x => (place ? "" : `${x.place}: `) + x.gives).join("; ")} (the logs can't tell if you have ${unk.length === 1 ? "it" : "these"})`;
+      ul.append(li);
+    }
+    return ul;
+  }
+
   // Your crimes, stacked by what they're for (Aaron, 2026-10-17: "I have cash cow crimes and then progression crimes"):
   //  Earn: at or above your average $/nerve (over 30 days or all time), a $/nerve bar each, best first;
   //  Level up: still progressing (skill under 100, or uniques left), a skill bar each, nearest to done first;
@@ -1245,7 +1436,15 @@ else (async function main() {
   // Skill is from Torn's level-up logs. Uniques left: the count Torn's banner showed when the crime's page was last
   // open, else your unique logs against each crime's total (torn.report, 2026-10).
   const UQ_TOTAL = { 1: 34, 2: 4, 3: 41, 4: 60, 5: 22, 7: 34, 9: 11, 13: 16 };
-  const more = { earn: false, up: false, uq: false };
+  const more = { earn: false, up: false, uq: false }, uqOpen = new Set();
+  const uqBtn = (r, label) => {  // the gold count opens the list of what's left there (when the catalogue has the crime)
+    if (!uqStatus(r.k)) return label;
+    const b = $("button", "ca-uqbtn");
+    b.type = "button"; b.append(label, uqOpen.has(r.k) ? " \u25b4" : " \u25be");
+    b.title = "What's left to find, and what each needs"; b.setAttribute("aria-expanded", String(uqOpen.has(r.k)));
+    b.onclick = e => { e.preventDefault(); e.stopPropagation(); if (!uqOpen.delete(r.k)) uqOpen.add(r.k); renderPanel(); };
+    return b;
+  };
   function yourCrimes(avg) {
     const box = $("div", "ca-yours"), p = get("period", "30") === "all" ? "all" : "30";
     const all = Object.fromEntries(summary.all.crimes.map(c => [c.id, c])), month = Object.fromEntries(summary.month.crimes.map(c => [c.id, c]));
@@ -1338,6 +1537,8 @@ else (async function main() {
         draw(r, trk, right);
         li.append(link(r.c), trk, right);
         ul.append(li);
+        // (the uniques still to find there, and what each needs: tap the gold count)
+        if (r.left > 0 && uqOpen.has(r.k)) { const el = uqListEl(r.k); if (el) { const x = $("li", "ca-uqrow"); x.append(el); ul.append(x); } }
       }
       box.append(lab2, ul);
       const t = toggle(list, which, n, "");
@@ -1348,7 +1549,7 @@ else (async function main() {
         const fill = $("span", "sk");
         fill.style.width = `${r.s || 0}%`;
         trk.append(fill);
-        if (r.left > 0) right.append($("span", "ca-uqn", `\u2605${r.left} `));
+        if (r.left > 0) right.append(uqBtn(r, $("span", "ca-uqn", `\u2605${r.left} `)));
         right.append(r.s == null ? "?" : `${r.s}`);
       });
     bars(uq, "uq", 3, "Uniques", "left to find",
@@ -1357,7 +1558,7 @@ else (async function main() {
         fill.style.width = `${(r.total - r.left) / r.total * 100}%`;
         trk.append(fill);
         right.className = "ca-bv ca-uqv";
-        right.append(`\u2605${r.left} left`);
+        right.append(uqBtn(r, `\u2605${r.left} left`));
       });
 
     if (waiting) box.append($("div", "ca-muted ca-none", `+${waiting} more once your history has loaded`));
@@ -1392,23 +1593,13 @@ else (async function main() {
       : st.done ? $("span", "ca-ok", "\u2713 up to date") : $("span", "", "more loads while Torn is open");
     if (bits.length) info.append(" \u00b7 ");
     info.append(state);
-    const tog = $("button", "ca-link", keyOpen ? "Hide key" : pdaKey && key === pdaKey ? "PDA's key \u00b7 Change" : "Key \u00b7 Change");
-    tog.type = "button"; tog.setAttribute("aria-expanded", String(keyOpen));
-    tog.onclick = e => { e.stopPropagation(); keyOpen = !keyOpen; keyErr = ""; renderPanel(); };
-    row.append(info, tog);
+    // (the key, the opt-ins and the bug report are in Settings, the gear above)
+    const gear = $("button", "ca-link", "Settings");
+    gear.type = "button";
+    gear.onclick = e => { e.stopPropagation(); view = "settings"; renderPanel(); panel.scrollTop = 0; };
+    row.append(info, gear);
     f.append(row);
     if (memoryOnly) f.append($("div", "ca-muted", "This browser blocks site storage here (a private window?): logs are re-read each visit."));
-    const auto = $("label", "ca-auto"), cb = $("input");
-    cb.type = "checkbox"; cb.checked = !!get("autoOpen", false);
-    cb.onchange = () => set("autoOpen", cb.checked);
-    auto.append(cb, "Open automatically on crime pages");
-    if (!matchMedia("(max-width:600px)").matches) f.append(auto);  // (no "Open automatically" on a phone)
-    const sh = $("label", "ca-auto"), shc = $("input");  // (the skill badges by each crime's title)
-    shc.type = "checkbox"; shc.checked = skillShown();
-    shc.onchange = () => { set("hideSkill", !shc.checked); schedule(); };
-    sh.append(shc, "Show skill badges and advice");
-    f.append(sh, commUi(), updUi(), aboutBrowser());
-    if (keyOpen) f.append(keyForm(key));
     return f;
   }
 
@@ -1700,7 +1891,7 @@ else (async function main() {
       const before = get("key", "");
       set("key", v); inp.value = ""; keyErr = "";
       try { await api("/user/log", { cat: 136, limit: 1 }); } catch (e) { set("key", before); keyErr = `That key doesn't work: ${e.message}`; renderPanel(); return; }
-      keyOpen = false; priceDenied = false;
+      keyOpen = false; priceDenied = false; view = "advice";
       renderPanel(); start();
     };
     inp.onkeydown = e => { if (e.key === "Enter") save.click(); };
@@ -2137,7 +2328,9 @@ else (async function main() {
     scamming: "Rotate scam types (repeating one lowers responses) and cash out before suspicion builds.",
     arson: "Follow the recipe's steps. Accidental and insurance jobs want low suspicion: a Lighter, never the Flamethrower. Highly suspicious ones want Gasoline or Magnesium (the Flamethrower from skill 80).",
   };
-  const skillShown = () => !get("hideSkill", false);
+  // The badge's setting: "always", "until100" (hidden once a crime is done) or "off"; 2.2.24's "hide" checkbox is off
+  const skillMode = () => { const m = get("skillBadge", null); return ["always", "until100", "off"].includes(m) ? m : get("hideSkill", false) ? "off" : "always"; };
+  const skillShown = () => skillMode() !== "off";
   // Options Torn shows before you can do them: Forgery's picker lists every project, greyed until its level (Torn's own
   // picker, Aaron's screenshots 2026-10-18). Above your skill a project gets its unlock level, not a grade, and stays out
   // of Best here (and isn't marked seen, so it's "Just unlocked" when you get there).
@@ -2159,21 +2352,23 @@ else (async function main() {
     if (k === "cardskimming") return skimPlan(root, k);
     const sk = values.crime_skill && values.crime_skill[k], host = nameEl(root, k);
     const had = root.querySelector(".ca-path"), s = sk == null ? null : Math.floor(sk);
-    if (!skillShown() || (s != null && s >= 100) || !host) { had?.remove(); return; }
+    if (!skillShown() || (s != null && s >= 100 && skillMode() === "until100") || !host) { had?.remove(); return; }
     const sig = s == null ? "start" : String(s);
     if (had && had.dataset.sig === sig) return;
     had?.remove();
-    const b = $("span", "ca-badge ca-hud ca-path B");
+    const max = s != null && s >= 100, name = (values.crimes || {})[k] || "This crime";
+    if (max && !ADVICE[k]) return;  // (at 100 the badge is there for the tips)
+    const b = $("span", `ca-badge ca-hud ca-path ${max ? "S" : "B"}`);
     b.dataset.sig = sig; b.dataset.tab = k;
-    b.append($("span", "ca-t", "\u25b6"), $("span", "ca-v", s == null ? "start" : `skill ${s}/100`));
-    b.title = (s == null ? `${(values.crimes || {})[k] || "This crime"}: just starting.` : `On your path: ${(values.crimes || {})[k] || "this crime"} skill ${sk} of 100.`) +
+    b.append($("span", "ca-t", max ? "\u2713" : "\u25b6"), $("span", "ca-v", s == null ? "start" : max ? "100 \u00b7 tips" : `skill ${s}/100`));
+    b.title = (s == null ? `${name}: just starting.` : max ? `${name}: skill 100.` : `On your path: ${name} skill ${sk} of 100.`) +
       (ADVICE[k] ? ` ${ADVICE[k]}` : "");
     tapAdvice(b);
     host.appendChild(b);
   }
   function skimPlan(root, k) {
     const sk = values.crime_skill && values.crime_skill[k], host = nameEl(root, k);
-    if (!skillShown()) { root.querySelectorAll(".ca-skim").forEach(e => e.remove()); return; }
+    if (!skillShown() || (sk != null && sk >= 100 && skillMode() === "until100")) { root.querySelectorAll(".ca-skim").forEach(e => e.remove()); return; }
     if (sk == null || !host) return;
     const s = Math.floor(sk), stage = s >= 100 ? "done" : s >= 25 ? "gas" : "build";
     const text = stage === "done" ? "skill 100" : stage === "gas" ? `Gas Station \u00b7 skill ${s}/100` : `skill ${s}/25`;
@@ -2544,6 +2739,12 @@ else (async function main() {
       ["Your own", v.own_per_nerve != null ? `${short(v.own_per_nerve)}/nerve over ${v.count} ${v.unit}` : null],
       ["From", v.source === "community" ? "community estimate" : v.source === "guide" ? "the guide: you haven't tried it (Emforus, max skill)"
         : v.guide != null ? `your logs, with the guide counted as 8 tries` : "your logs"]]));
+    // the one-time uniques still to find here, and what each needs (open when Torn shows one waiting)
+    const uqHere = uqListEl(CA.slug(CA.NAMES[v.crime_id] || ""), v.kind);
+    if (uqHere) {
+      const nLeft = uqHere.querySelectorAll("li:not(.ca-muted)").length;
+      sec("Unique to find here", nLeft ? `${nLeft} left` : "maybe", [uqHere], star, "From the Torn wiki and Emforus's guides, checked against the uniques in your logs");
+    }
     const uq = ((o && o.uniques) || []).slice().sort((a, b) => b.value - a.value), nuq = Math.max(uq.length, v.uniques || 0);
     if (nuq) sec("Uniques", `${nuq} found`, [
       ...kv(uq.slice(0, 4).map(u => [u.items.join(" + ") || "cash", short(u.value)])),

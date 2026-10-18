@@ -66,10 +66,12 @@ Numbers are net: materials you used are subtracted, and item rewards are counted
 | Options you haven't tried (2.2.20) | A starting estimate from Emforus's Crime Profitability Index (marked ~), so they're graded and can show up in Best crimes; a newly unlocked option is marked Just unlocked |
 | Disposal and Arson (2.2.27) | Disposal rings the method with the best expected $/nerve (the Crime Profitability Index's figure until your own record takes over; ★ marks where the job's one-time unique is); Arson recipes as numbered steps, with fuels that work below skill 80 |
 | Forgery levelling (2.2.26) | Below skill 100, Forgery projects are graded for levelling: the fewest critical fails per step, a grade lower if one loses tools; projects you haven't unlocked show their level |
+| Uniques to find (2.3) | Tap a crime's gold ★ count for the uniques still missing and what each needs (cameras off, a key item, a skill...); a place's card lists its own. From the Torn wiki and Emforus's guides, checked against your logs |
+| Stats and Settings (2.3) | Two icons at the top of the panel: 📊 your crime income per day (today, 7 and 30 days, all time, the last 30 days as bars) and skill progress; ⚙ the key, the skill badge (always, until skill 100, or off), and the opt-ins |
 | Update notices (2.2.14) | Opt in to an "Update ready" note in the panel |
 | Lighter | Faster loading, backs off when Torn is busy, gentler on slow computers, and a reload no longer interrupts it |
 
-**Upgrading from 1.x:** make the new key (step 3) and paste it in under **Key · Change**. Your logs are read once more in the background.
+**Upgrading from 1.x:** make the new key (step 3) and paste it in in **Settings ⚙ › Key › Change**. Your logs are read once more in the background.
 
 ## Community numbers (opt-in)
 
@@ -104,14 +106,14 @@ It updates itself: Tampermonkey checks tornbrain.com for a new version about onc
 
 | Message or problem | Fix |
 |---|---|
-| "This key can't read item prices" | It's a 1.x key. Make a new one (step 3) and paste it under **Key · Change**. |
+| "This key can't read item prices" | It's a 1.x key. Make a new one (step 3) and paste it in **Settings ⚙ › Key › Change**. |
 | "That key doesn't work" | Mistyped, or deleted on Torn. A key is 16 letters and numbers. |
 | "too many requests" | Other tools used Torn's 100 calls a minute. It waits and carries on. |
 | No grades on a crime page | Grades appear for things you've done before. If the log count is still climbing, give it a few minutes. |
 | "loading in another tab" | One Torn tab loads at a time. The others pick up its progress. |
 | "logs are re-read each visit" | A private window is blocking storage. It works from your latest ~2,000 logs only. |
 | A number looks wrong | Prices are today's, so old items are re-priced. Hover a panel row for all time, 30 days and nerve. |
-| Start over | Panel › **Key · Change** › **Remove key and stored logs**. |
+| Start over | Panel › **Settings ⚙ › Key › Change** › **Remove key and stored logs**. |
 
 ---
 
