@@ -14,6 +14,8 @@ Read-only: it never clicks, commits a crime or does anything in Torn for you.
    **[Make a key](https://www.torn.com/preferences.php#tab=api?step=addNewKey&title=Crime%20Advisor&user=log&torn=items)**
 4. On any Crimes page, click **Crime Advisor** in the bottom-left, paste the key and press **Save**.
 
+**Torn PDA:** open the install link in PDA's own browser and press Install. In PDA's script settings, **Set API Key** gives it your Crime Advisor key, so there's nothing to paste.
+
 Your newest logs load first, so grades appear within seconds. Older logs load in the background: about 10,000 logs in 3 minutes, using up to 40 of Torn's 100 calls a minute. It carries on next time you open Torn, and only one tab loads at a time.
 
 ## What you'll see
@@ -50,7 +52,7 @@ Numbers are net: materials you used are subtracted, and item rewards are counted
 
 **Without a key**, Arson still works: each job gets the community's recipe and payout range, and its requirements.
 
-## What's new in 2.0
+## What's new in 2.x
 
 | | |
 |---|---|
@@ -60,18 +62,31 @@ Numbers are net: materials you used are subtracted, and item rewards are counted
 | More crimes | Shoplifting, Pickpocketing, Burglary by property type (scouting cost counted), Bootlegging's next genre, Card Skimming and Hustling skill plans |
 | Item prices | Items count at today's market price. **This needs a new key** (step 3): 1.x keys read logs only, so items counted as $0 |
 | Uniques | Left to find, on each crime and the hub |
+| Torn PDA (2.1) | Works in the app: on a phone each chip is its grade, and a box beside Torn's chat bar shows the one thing to do |
+| Community numbers (2.2) | Opt in to see what players at your skill earn per option (below) |
 | Lighter | Faster loading, backs off when Torn is busy, gentler on slow computers, and a reload no longer interrupts it |
 
 **Upgrading from 1.x:** make the new key (step 3) and paste it in under **Key · Change**. Your logs are read once more in the background.
+
+## Community numbers (opt-in)
+
+Off unless you turn it on in the panel's footer. Then each card can show what players at your skill earn there.
+
+| | |
+|---|---|
+| What's shared | Per crime option: tries (rounded down), success rate, $/nerve, skill band. No logs, no times. Once your history has loaded, at most daily. |
+| Your key | Sent once to `api.tornbrain.com`, which asks Torn whose it is, keeps a scrambled id so you count once, and drops the key. |
+| What you see | A number only when 5 or more players are behind it. |
+| Leaving | Untick it: everything about you there is deleted. |
 
 ## Your key and your data
 
 | | |
 |---|---|
 | Data storage | Only in your browser. Crime logs go into the browser's own storage (IndexedDB); Tampermonkey keeps your settings and key. |
-| Data sharing | None. Nothing about you leaves your browser. |
+| Data sharing | None, unless you turn on Community numbers (off by default): then coarse per-option summaries go to `api.tornbrain.com`. |
 | Purpose of use | Personal: your own $/nerve per crime. |
-| Key storage & sharing | Stored in Tampermonkey on this browser. Sent only to `api.torn.com`. |
+| Key storage & sharing | Stored in Tampermonkey on this browser (in Torn PDA: on your phone). Sent to `api.torn.com`; if you join Community numbers, once to `api.tornbrain.com`, which doesn't keep it. |
 | Key access level | Custom: `log`, plus `items` (Torn section) for market prices. |
 | Other downloads | Public arson recipes from `balaclava.app` (the Arsonist's Ledger), once a day. No key is sent with it. |
 
@@ -97,3 +112,5 @@ It updates itself: Tampermonkey checks tornbrain.com for a new version about onc
 ---
 
 Made by AJTheSecond. Arson recipes come from the community's Arsonist's Ledger at balaclava.app; your grades and $/nerve come from your own logs.
+
+Free, and staying free. If it's helped you, you can [buy me a coffee](https://buymeacoffee.com/ajthesecond). Entirely optional.

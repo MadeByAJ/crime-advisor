@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.0.10
-// @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
+// @version      2.2.2
+// @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
 // @updateURL    https://tornbrain.com/crime-advisor.user.js
@@ -13,6 +13,7 @@
 // @grant        GM_setValue
 // @connect      api.torn.com
 // @connect      balaclava.app
+// @connect      api.tornbrain.com
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -38,7 +39,7 @@
  * Read-only: it never clicks, commits a crime or does anything in Torn for you.
  */
 
-/* global GM_xmlhttpRequest, GM_getValue, GM_setValue, module */
+/* global GM_xmlhttpRequest, GM_getValue, GM_setValue, GM_info, PDA_httpGet, module */
 
 // ======================================================================================================
 // The analysis (pure functions: no browser APIs, so it can be tested outside Torn)
@@ -580,12 +581,15 @@ const CA = (() => {
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
-else (function main() {
+else (async function main() {
   "use strict";
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
+  // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
+  if (!document.body) await new Promise(r => document.addEventListener("DOMContentLoaded", r, { once: true }));
   const body = document.body;
-  if (!body) return;
+  if (!body || document.documentElement.dataset.crimeAdvisor) return;
+  document.documentElement.dataset.crimeAdvisor = "1";
   // A Custom key with your logs and Torn's item prices (2.0: a log-only key can't read prices, so every item counted
   // as $0: Aaron's Shoplifting showed $34/nerve against TornBrain's $2.5k)
   const KEY_LINK = "https://www.torn.com/preferences.php#tab=api?step=addNewKey&title=Crime%20Advisor&user=log&torn=items";
@@ -600,8 +604,34 @@ else (function main() {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // ---------------- storage: settings in Tampermonkey, logs in IndexedDB ----------------
-  const get = (k, d) => { try { const v = GM_getValue(k); return v === undefined ? d : v; } catch (e) { return d; } };
-  const set = (k, v) => { try { GM_setValue(k, v); } catch (e) { /* ignore */ } };
+  // Torn PDA (the phone app) runs userscripts with its own GM_ layer: settings land in torn.com's localStorage (about
+  // 5 MB, shared with Torn's chat) which PDA's "Clear cache" empties, key and all. There every setting but the
+  // cross-tab sync lock is kept in IndexedDB beside the logs (which survives it), and the API is called with fetch
+  // (Torn's API allows it). PDA can also hand a script its own key: used until you save one, if it can read logs.
+  const PDA = typeof PDA_httpGet === "function" || !!window.flutter_inappwebview || /tornpda/i.test(navigator.userAgent);
+  const PDA_KEY = "###PDA-APIKEY###", pdaKey = /^[A-Za-z0-9]{16}$/.test(PDA_KEY) ? PDA_KEY : "";
+  const KEYS = ["key", "sync", "period", "autoOpen", "synced_at", "uq", "seen", "prices", "ref", "pdaKeyOff"], kvMem = new Map();
+  const inDb = k => PDA && k !== "lock";
+  // (no GM storage at all, e.g. a script runner without it: torn.com's localStorage, under "crime-advisor:")
+  const noGM = typeof GM_getValue !== "function" || typeof GM_setValue !== "function";
+  const get = (k, d) => {
+    if (k === "key") { const v = rawGet(k, ""); return v || (pdaKey && !rawGet("pdaKeyOff", false) ? pdaKey : d); }
+    return rawGet(k, d);
+  };
+  const rawGet = (k, d) => {
+    if (inDb(k)) return kvMem.has(k) ? kvMem.get(k) : d;
+    try {
+      if (noGM) { const s = localStorage.getItem(`crime-advisor:${k}`); return s == null ? d : JSON.parse(s); }
+      const v = GM_getValue(k); return v === undefined ? d : v;
+    } catch (e) { return d; }
+  };
+  const set = (k, v) => {
+    if (inDb(k)) { kvMem.set(k, v); kvdb.put(k, v); return; }
+    try {
+      if (noGM) { if (v === undefined) localStorage.removeItem(`crime-advisor:${k}`); else localStorage.setItem(`crime-advisor:${k}`, JSON.stringify(v)); }
+      else GM_setValue(k, v);
+    } catch (e) { /* ignore */ }
+  };
   // Some browsers block IndexedDB (e.g. private windows): then the logs are kept in memory for this visit only.
   let memoryOnly = false;
   const idb = (() => {
@@ -613,7 +643,7 @@ else (function main() {
       try {
         const r = indexedDB.open("crime-advisor", 1);
         r.onupgradeneeded = () => r.result.createObjectStore("logs", { keyPath: "id" });
-        r.onsuccess = () => { clearTimeout(timer); res(r.result); };
+        r.onsuccess = () => { clearTimeout(timer); r.result.onversionchange = () => r.result.close(); res(r.result); };
         r.onerror = () => { clearTimeout(timer); fail(); };
       } catch (e) { clearTimeout(timer); fail(); }
     }));
@@ -625,6 +655,31 @@ else (function main() {
              count: () => tx("readonly", s => s.count(), () => mem.size),
              clear: () => tx("readwrite", s => s.clear(), () => mem.clear()) };
   })();
+  // Torn PDA's settings: a database of their own (so the logs' database never needs an upgrade an open tab blocks)
+  const kvdb = (() => {
+    let p = null;
+    const open = () => p || (p = new Promise(res => {
+      const timer = setTimeout(() => res(null), 5000);
+      try {
+        const r = indexedDB.open("crime-advisor-kv", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("kv", { keyPath: "k" });
+        r.onsuccess = () => { clearTimeout(timer); res(r.result); };
+        r.onerror = () => { clearTimeout(timer); res(null); };
+      } catch (e) { clearTimeout(timer); res(null); }
+    }));
+    return {
+      put: async (k, v) => { const db = await open(); if (db) try { db.transaction("kv", "readwrite").objectStore("kv").put({ k, v }); } catch (e) { /* kept in memory */ } },
+      all: async () => { const db = await open(); if (!db) return [];
+        return new Promise(res => { const q = db.transaction("kv").objectStore("kv").getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); },
+    };
+  })();
+  if (PDA) {  // load them before anything reads them; values an earlier visit put in torn.com's storage move across
+    for (const { k, v } of await kvdb.all()) kvMem.set(k, v);
+    for (const k of KEYS) {
+      let old; try { old = noGM ? undefined : GM_getValue(k); } catch (e) { /* none */ }
+      if (old !== undefined) { if (!kvMem.has(k)) set(k, old); try { GM_setValue(k, undefined); } catch (e) { /* ignore */ } }
+    }
+  }
 
   // ---------------- the Torn API (your key, one request every 3 s at most, one at a time) ----------------
   // Catching up on history: one every 1.5 s (40 of Torn's 100 a minute per player, shared with your other tools);
@@ -632,9 +687,29 @@ else (function main() {
   const GAP_MS = 3000, CATCHUP_MS = 1500, BACKOFF_MS = 6000;
   let lastReq = 0, apiChain = Promise.resolve(), gap = GAP_MS, backoffUntil = 0;
   const pace = catchingUp => { gap = Date.now() < backoffUntil ? BACKOFF_MS : catchingUp ? CATCHUP_MS : GAP_MS; };
-  function http(opts) {
-    return new Promise((res, rej) => GM_xmlhttpRequest({ ...opts, timeout: 30000, onload: res, onerror: () => rej(new Error("network error")),
-                                                         ontimeout: () => rej(new Error("timed out")) }));
+  // Requests: Tampermonkey's, except the API in Torn PDA (by fetch: its GM layer's replies aren't Tampermonkey's) or
+  // wherever there's no GM request at all. The last one's outcome goes in the panel's "About this browser".
+  let lastNet = null;
+  async function fetchText(opts) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 30000);
+    try {
+      const r = await fetch(opts.url, { method: opts.method || "GET", headers: opts.headers, body: opts.data, signal: ctl.signal, cache: "no-store" });
+      return { status: r.status, responseText: await r.text() };
+    } catch (e) { throw new Error(e.name === "AbortError" ? "timed out" : "network error"); }
+    finally { clearTimeout(t); }
+  }
+  async function http(opts) {
+    // (tornbrain.com too, in PDA: the app's own requests don't look like a browser's, and Cloudflare in front of
+    // api.tornbrain.com could take them for a bot)
+    const byFetch = (PDA && /^https:\/\/api\.torn(brain)?\.com\//.test(opts.url)) || typeof GM_xmlhttpRequest !== "function";
+    const host = new URL(opts.url).host;
+    try {
+      const r = byFetch ? await fetchText(opts) : await new Promise((res, rej) => GM_xmlhttpRequest({ ...opts, timeout: 30000,
+        onload: x => res({ status: x.status, responseText: x.responseText != null ? x.responseText : x.response != null ? String(x.response) : "" }),
+        onerror: () => rej(new Error("network error")), ontimeout: () => rej(new Error("timed out")) }));
+      lastNet = { host, via: byFetch ? "fetch" : "GM", ok: true, status: r.status, at: Date.now() };
+      return r;
+    } catch (e) { lastNet = { host, via: byFetch ? "fetch" : "GM", ok: false, err: e.message, at: Date.now() }; throw e; }
   }
   async function apiNow(path, params) {
     const key = get("key", "");
@@ -648,6 +723,7 @@ else (function main() {
     if (j.error) {
       const msg = { 2: "the API key isn't right", 16: "the key's access is too low: use the panel's \"Make a key\" link (logs + item prices)", 5: "too many requests: waiting",
                     8: "IP blocked by Torn for too many requests", 13: "the key's owner is inactive", 18: "the key is paused" }[j.error.code] || j.error.error;
+      if (pdaKey && key === pdaKey && [2, 16].includes(j.error.code)) set("pdaKeyOff", true);  // (PDA's key can't: ask for one)
       const e = new Error(msg); e.code = j.error.code; throw e;
     }
     return j;
@@ -829,7 +905,7 @@ else (function main() {
   const olderThan = t => { let lo = 0, hi = storedTs.length; while (lo < hi) { const m = (lo + hi) >> 1; if (storedTs[m] < t) lo = m + 1; else hi = m; } return lo; };
   async function recompute() {
     const t0 = performance.now();
-    try { return await recomputeNow(); } finally { rcMs = performance.now() - t0; }
+    try { return await recomputeNow(); } finally { rcMs = performance.now() - t0; commShare(false); commFetch(false); }
   }
   async function recomputeNow() {
     const rows = get("key", "") ? await idb.all().catch(() => []) : [];
@@ -852,8 +928,11 @@ else (function main() {
   // Q little history, W careful, G ready to collect. Green go, amber careful, red loses, gold unique.
   const style = $("style");
   style.textContent = `
-    .ca-btn{position:fixed;left:12px;bottom:12px;z-index:99998;display:flex;align-items:center;gap:4px;max-width:min(340px,80vw);background:#1a1a19;color:#9cc8ff;
-      border:1px solid #3a3a37;border-radius:18px;padding:6px 12px;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden}
+    .ca-btn{position:fixed;left:12px;bottom:12px;z-index:99998;display:grid;justify-items:start;gap:1px;max-width:min(340px,80vw);background:#1a1a19;color:#9cc8ff;
+      border:1px solid #3a3a37;border-radius:12px;padding:6px 12px 7px;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-align:left}
+    .ca-btn .ca-bt{font:700 9.5px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9cc8ff}
+    .ca-btn .ca-ba{display:flex;align-items:center;gap:6px;max-width:100%;min-width:0;overflow:hidden;font:600 13px system-ui,sans-serif;color:#f3f3f1}
+    .ca-btn .ca-ba.muted{color:#a9a89f}
     .ca-btn .ca-bn{overflow:hidden;text-overflow:ellipsis;color:#f3f3f1}.ca-btn .ca-tier{width:18px;height:18px;font-size:11px;border-radius:5px}
     .ca-panel{position:fixed;left:12px;bottom:52px;z-index:99999;width:min(360px,92vw);max-height:70vh;overflow:auto;background:#1a1a19;color:#f3f3f1;box-sizing:border-box;
       border:1px solid #3a3a37;border-radius:10px;padding:12px 14px;font:13px/1.45 system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.55)}
@@ -893,6 +972,23 @@ else (function main() {
     .ca-hubuq{margin-left:6px;vertical-align:middle}
     .ca-auto{display:flex;align-items:center;gap:6px;font-size:11px;color:#8f8e86;cursor:pointer;min-height:24px}.ca-panel .ca-auto input{width:auto;margin:0;accent-color:#2a78d6}
     .ca-list li.ca-weak{opacity:.6}.ca-list li.ca-weak:hover{opacity:1}
+    .ca-about summary{cursor:pointer;font-size:11px;color:#8f8e86;min-height:24px;display:flex;align-items:center}
+    .ca-diag{display:grid;gap:2px;font-size:11px;color:#c3c2b7;margin:4px 0}.ca-diag .ca-kv span:first-child{color:#8f8e86;flex:none}
+    .ca-diag .ca-kv span:last-child{overflow-wrap:anywhere}
+    .ca-tip{position:fixed;z-index:100001;background:#2c2c2a;color:#f3f3f1;border:1px solid #3a3a37;border-radius:8px;padding:8px 10px;
+      font:12px/1.45 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.5);box-sizing:border-box}
+    /* a phone (Torn PDA, a mobile browser): the panel is a bottom sheet, the button clear of the screen's edge */
+    @media (max-width:600px){
+      .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+      .ca-btn{bottom:calc(12px + var(--ca-btn-lift,0px) + env(safe-area-inset-bottom,0px));max-width:var(--ca-room,calc(100vw - 24px))}
+      .ca-btn{padding:6px 10px 7px}.ca-btn .ca-ba{font-size:12px;gap:5px}
+      .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
+      /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
+         the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
+      .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
+      .ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
+    }
+    .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
     .ca-prog{height:3px;border-radius:2px;background:#232321;overflow:hidden}.ca-prog span{display:block;height:100%;background:#2a78d6;transition:width .4s}
@@ -928,7 +1024,7 @@ else (function main() {
     .ca-hud.X{background:#6b2020;color:#ffd6d6}.ca-hud.X .ca-t{background:#e5534b;color:#fff}
     .ca-hud.Q{background:#232321;color:#a9a89f;outline:1px dashed #55554f;outline-offset:-1px}.ca-hud.Q .ca-t{background:transparent;color:#c3c2b7}
     .ca-hud.W{background:#3a2f12;color:#ffe9a8}.ca-hud.W .ca-t{background:#5a4712;color:#ffe9a8}
-    .ca-hud.step{margin-left:10px}.ca-hud.tight .ca-v{padding:0 6px 0 4px;gap:2px}.ca-hud.tight .ca-t{min-width:16px;padding:0 4px}
+    .ca-hud.mini .ca-v{display:none}.ca-hud.step{margin-left:10px}.ca-hud.tight .ca-v{padding:0 6px 0 4px;gap:2px}.ca-hud.tight .ca-t{min-width:16px;padding:0 4px}
     .ca-badge.ca-oval{align-self:center;margin-left:10px;cursor:help;min-height:24px;font-size:12px}
     .ca-hud .ca-lbl{display:flex;align-items:center;padding:0 7px;font:700 9px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;background:rgba(0,0,0,.28)}
     .ca-hud:hover{filter:brightness(1.15)}.ca-hud[aria-expanded="true"]{box-shadow:0 0 0 2px #9cc8ff}
@@ -984,10 +1080,11 @@ else (function main() {
 
   // ---------------- the panel: best crimes, key, sync status, your $/nerve by crime ----------------
   let panel = null;
-  const btn = $("button", "ca-btn", "Crime Advisor");
+  const btn = $("button", "ca-btn");
+  btn.append($("span", "ca-bt", "Crime Advisor"));
   btn.type = "button";
   if (onCrimes) body.appendChild(btn);
-  btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
+  btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
   setInterval(async () => {  // while the panel is open: another tab's progress shows up here too
     if (!panel) return;
     const typing = panel.querySelector("input");
@@ -1024,7 +1121,7 @@ else (function main() {
     panel.append(bestBox);
     if (!key) {
       const onb = $("div", "ca-onb");
-      onb.append($("b", "", "See your own $/nerve"), $("div", "ca-muted", "Grades every crime option from your own logs. Arson recipes work without a key."), keyForm(""));
+      onb.append($("b", "", "See your own $/nerve"), $("div", "ca-muted", "Grades every crime option from your own logs. Arson recipes work without a key."), keyForm(""), aboutBrowser());
       panel.append(onb);
       return;
     }
@@ -1045,20 +1142,23 @@ else (function main() {
     const all = Object.fromEntries(summary.all.crimes.map(c => [c.id, c])), month = Object.fromEntries(summary.month.crimes.map(c => [c.id, c]));
     if (!avg) avg = summary.all.total.per_nerve || 0;
     const skill = summary.all.skill || {}, seenUq = get("uq", {});
-    const earn = [], up = [], uq = [], done = [];
+    const earn = [], up = [], uq = [], done = [], histDone = !!get("sync", {}).done;
+    let waiting = 0;
     for (const c of summary.all.crimes) {
       if (!c.id || !(c.nerve > 0) || c.per_nerve == null) continue;
       const k = CA.slug(c.name), mo = month[c.id];
       const recent = p === "30" && mo && mo.nerve > 0 && mo.per_nerve != null;
       const pn = p === "all" || recent ? (recent ? mo.per_nerve : c.per_nerve) : null;  // (30 days: nothing done, no number)
       const s = skill[k] != null ? skill[k] : null;
-      const total = seenUq[k] ? seenUq[k][1] : UQ_TOTAL[c.id] || 0, found = seenUq[k] ? seenUq[k][0] : Math.min(c.uniques || 0, total);
+      // (uniques from your logs only once all your history is in: half-loaded, every crime looks unfound)
+      const total = seenUq[k] ? seenUq[k][1] : histDone ? UQ_TOTAL[c.id] || 0 : 0, found = seenUq[k] ? seenUq[k][0] : Math.min(c.uniques || 0, total);
       const row = { c, k, pn, s, left: Math.max(0, total - found), total };
       const tip = `${c.name}: ${short(c.per_nerve)}/nerve all time \u00b7 `
         + (mo && mo.nerve ? `${short(mo.per_nerve)}/nerve over 30 days (${mo.nerve.toLocaleString()} nerve)` : "none in the last 30 days")
         + (s != null ? ` \u00b7 skill ${s}/100` : "") + (total ? ` \u00b7 uniques ${total - row.left}/${total}` : "");
       row.tip = tip;
       if (pn != null && pn > 0 && pn >= avg) earn.push(row);
+      else if (s == null && !histDone) waiting++;  // (its skill logs are further back: not loaded yet)
       else if (s == null || s < 100) up.push(row);
       else if (row.left > 0) uq.push(row);
       else done.push(row);
@@ -1151,6 +1251,8 @@ else (function main() {
         right.append(`\u2605${r.left} left`);
       });
 
+    if (waiting) box.append($("div", "ca-muted ca-none", `+${waiting} more once your history has loaded`));
+
     // Done: one line
     if (done.length) {
       const d = $("div", "ca-done");
@@ -1181,7 +1283,7 @@ else (function main() {
       : st.done ? $("span", "ca-ok", "\u2713 up to date") : $("span", "", "more loads while Torn is open");
     if (bits.length) info.append(" \u00b7 ");
     info.append(state);
-    const tog = $("button", "ca-link", keyOpen ? "Hide key" : "Key \u00b7 Change");
+    const tog = $("button", "ca-link", keyOpen ? "Hide key" : pdaKey && key === pdaKey ? "PDA's key \u00b7 Change" : "Key \u00b7 Change");
     tog.type = "button"; tog.setAttribute("aria-expanded", String(keyOpen));
     tog.onclick = e => { e.stopPropagation(); keyOpen = !keyOpen; keyErr = ""; renderPanel(); };
     row.append(info, tog);
@@ -1191,9 +1293,196 @@ else (function main() {
     cb.type = "checkbox"; cb.checked = !!get("autoOpen", false);
     cb.onchange = () => set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
-    f.append(auto);
+    f.append(auto, commUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
+  }
+
+  // "About this browser": what Crime Advisor is running in and how it's getting on, to copy into a bug report (and
+  // for testing in Torn PDA, where there's no console to look at)
+  let aboutOpen = false;
+  function diagnostics() {
+    const gi = typeof GM_info !== "undefined" ? GM_info : null, st = get("sync", {}), ago = t => `${Math.round((Date.now() - t) / 1000)} s ago`;
+    return [
+      ["Crime Advisor", (gi && gi.script && gi.script.version) || "?"],
+      ["Runs in", PDA ? "Torn PDA" : gi && gi.scriptHandler ? `${gi.scriptHandler} ${gi.version || ""}`.trim() : "unknown"],
+      ["Settings kept in", PDA ? "IndexedDB (Torn PDA)" : noGM ? "torn.com storage" : "the userscript manager"],
+      ["Key", !get("key", "") ? "none" : pdaKey && get("key", "") === pdaKey ? "Torn PDA's" : "saved here"],
+      ["Logs kept in", memoryOnly ? "memory only (storage blocked)" : "IndexedDB"],
+      ["Logs", `${summary ? summary.logs.toLocaleString() : "?"}${st.done ? ", all history" : ", history loading"}`],
+      ["Last request", lastNet ? `${lastNet.host} by ${lastNet.via}: ${lastNet.ok ? `HTTP ${lastNet.status}` : lastNet.err}, ${ago(lastNet.at)}` : "none yet"],
+      ["Sync", syncError ? `problem: ${syncError}` : syncing ? syncNote || "running" : "idle"],
+      ["This page", pageDiag()],
+      ["Bottom bar", barSeen],
+      ["Community", commState().token ? `on${commState().at ? `, shared ${new Date(commState().at).toLocaleDateString()}` : ""}` : "off"],
+      ["Screen", `${innerWidth}\u00d7${innerHeight}, ${matchMedia("(hover: none)").matches ? "touch" : "mouse"}, ${LOW ? "low-end device" : "normal device"}`],
+      ["Browser", navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)],
+    ];
+  }
+  // On a crime page: the options it knows for this crime, how many of their names it found on the page, the chips on
+  // it; and (copied only) how the first name it found sits in Torn's page: tag and class names, nothing personal
+  function pageDiag() {
+    if (!tab) return "the Crimes hub";
+    const k = tabKey(tab), rows = (values && values.tabs && values.tabs[k]) || [], text = (crimeRoot().innerText || "").toLowerCase();
+    const found = rows.filter(r => (r.find || [r.kind]).some(f => text.includes(String(f).toLowerCase())));
+    return `${k}: ${rows.length} options known, ${found.length} named on the page, ${document.querySelectorAll(".ca-chip").length} chips, ` +
+      `${onPage.length} graded (read from ${["the crimes app", "the content area", "the whole page"][rootWide]})`;
+  }
+  function pageOutline() {
+    if (!tab) return "";
+    const k = tabKey(tab), rows = (values && values.tabs && values.tabs[k]) || [];
+    const names = rows.flatMap(r => r.find || [r.kind]).map(f => String(f).toLowerCase());
+    const w = document.createTreeWalker(crimeRoot(), NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      const t = n.nodeValue.trim().toLowerCase();
+      if (t.length < 3 || !names.includes(t) || n.parentElement.closest(OURS)) continue;
+      const chain = [];
+      for (let e = n.parentElement, i = 0; e && i < 7; e = e.parentElement, i++) {
+        const cls = typeof e.className === "string" && e.className.trim() ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : "";
+        chain.push(e.tagName.toLowerCase() + cls);
+      }
+      return `"${n.nodeValue.trim()}" in ${chain.join(" < ")}`;
+    }
+    return "no option name found as a whole text";
+  }
+  function aboutBrowser() {
+    const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
+    d.open = aboutOpen;
+    d.ontoggle = () => { aboutOpen = d.open; };
+    const rows = diagnostics(), dl = $("div", "ca-diag");
+    for (const [k, v] of rows) { const r = $("div", "ca-kv"); r.append($("span", "", k), $("span", "", v)); dl.append(r); }
+    const copy = $("button", "ca-link", "Copy for a bug report");
+    copy.type = "button";
+    copy.onclick = e => {
+      e.stopPropagation();
+      const outline = pageOutline(), text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "");
+      const done = () => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy for a bug report"; }, 2000); };
+      const pdaCopy = PDA && window.flutter_inappwebview && window.flutter_inappwebview.callHandler;  // (PDA's own: the webview's can fail)
+      try { (pdaCopy ? window.flutter_inappwebview.callHandler("copyToClipboard", text) : navigator.clipboard.writeText(text)).then(done, () => { copy.textContent = "Couldn't copy: select the lines above"; }); }
+      catch (err) { copy.textContent = "Couldn't copy: select the lines above"; }
+    };
+    d.append(s, dl, copy);
+    return d;
+  }
+
+  // Phones can't hover: on a touch screen, tapping something in the panel with a tip shows the tip
+  let tipEl = null;
+  function showTip(host, text) {
+    if (tipEl) tipEl.remove();
+    tipEl = $("div", "ca-tip", text);
+    body.appendChild(tipEl);
+    const r = host.getBoundingClientRect(), w = Math.min(300, innerWidth - 16);
+    tipEl.style.width = `${w}px`;
+    tipEl.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
+    const below = r.bottom + 6, h = tipEl.offsetHeight;
+    tipEl.style.top = `${below + h < innerHeight - 8 ? below : Math.max(8, r.top - h - 6)}px`;
+    const mine = tipEl;
+    setTimeout(() => { if (tipEl === mine) { mine.remove(); tipEl = null; } }, 5000);
+  }
+  document.addEventListener("click", e => {
+    if (!matchMedia("(hover: none)").matches) return;
+    const t = e.target.closest && e.target.closest(".ca-panel [title]");
+    if (!t || t.closest("a, button, input, label, summary") || !t.title) { if (tipEl && !e.target.closest(".ca-tip")) { tipEl.remove(); tipEl = null; } return; }
+    showTip(t, t.title);
+  }, true);
+
+  // ---------------- community numbers (opt-in): what players like you earn, from tornbrain.com ----------------
+  // Off unless you turn it on. Joining sends your key once to tornbrain.com, which asks Torn whose it is, keeps a
+  // scrambled id (so you count once) and drops the key. What's shared, once your whole history is in and at most
+  // daily: per crime option, your tries (rounded down), success rate, $/nerve and skill band. No logs. A number shows
+  // only when 5 or more players are behind it. Turning it off deletes everything about you there.
+  const COMMUNITY = "https://api.tornbrain.com", KIND_OK = /^[A-Za-z0-9 '&().,:/+\-]{1,60}$/;
+  const commState = () => get("community", {});  // { token, at: last shared, err }
+  async function commCall(method, path, body) {
+    const c = commState(), headers = { "Content-Type": "application/json" };
+    if (c.token) headers.Authorization = `Bearer ${c.token}`;
+    const r = await http({ method, url: COMMUNITY + path, headers, data: body ? JSON.stringify(body) : undefined });
+    let j = {};
+    try { j = JSON.parse(r.responseText || "{}"); } catch (e) { /* not JSON */ }
+    if (r.status >= 400) { const e = new Error(j.error || `HTTP ${r.status}`); e.status = r.status; throw e; }
+    return j;
+  }
+  const bandOf = s => s == null ? null : s >= 100 ? 4 : Math.max(0, Math.min(3, Math.floor(s / 25)));
+  async function commJoin() {
+    const j = await commCall("POST", "/v1/join", { key: get("key", "") });
+    set("community", { token: j.token, at: 0, err: "" });
+    await commShare(true);
+  }
+  async function commLeave() {
+    try { await commCall("POST", "/v1/leave", {}); } catch (e) { /* already gone */ }
+    set("community", {}); set("communityNumbers", null);
+  }
+  async function commShare(force) {
+    const c = commState();
+    if (!c.token || !summary || !get("sync", {}).done) return;
+    if (!force && Date.now() - (c.at || 0) < 86400000) return;
+    const skill = summary.all.skill || {};
+    const rows = summary.all.kinds.filter(k => k.crime_id && k.count >= 10 && Number.isFinite(k.per_nerve) && KIND_OK.test(k.kind))
+      .slice(0, 400).map(k => ({ c: k.crime_id, k: k.kind, n: k.count, p: Math.round(k.per_nerve),
+        s: k.outcomes && Number.isFinite(k.outcomes.success) ? k.outcomes.success : null,
+        b: bandOf(skill[CA.slug(CA.NAMES[k.crime_id] || "")]) }));
+    try {
+      await commCall("POST", "/v1/contribute", { v: 1, rows });
+      set("community", { ...commState(), at: Date.now(), err: "" });
+      await commFetch(true);
+    } catch (e) {
+      if (e.status === 401) set("community", {});
+      else set("community", { ...commState(), err: e.message });
+    }
+    if (panel) renderPanel();
+  }
+  async function commFetch(force) {
+    const cur = get("communityNumbers", null);
+    if (!commState().token || (!force && cur && Date.now() - cur.got < 6 * 3600000)) return;
+    try { set("communityNumbers", { got: Date.now(), ...(await commCall("GET", "/v1/numbers")) }); }
+    catch (e) { if (e.status === 401) set("community", {}); }
+  }
+  // an option's community number: players at your skill where there are enough of them, else everyone's
+  function commFor(v) {
+    const n = get("communityNumbers", null), r = n && (n.rows || []).find(x => x.c === v.crime_id && x.k === v.kind);
+    if (!r) return null;
+    const mine = bandOf(((values && values.crime_skill) || {})[CA.slug(CA.NAMES[v.crime_id] || "")]);
+    const b = mine != null && r.bands && r.bands[String(mine)];
+    return b ? { p50: b.p50, n: b.n, skill: true, row: r } : { p50: r.p50, n: r.n, skill: false, row: r };
+  }
+  // the footer's switch, and what it shares before you turn it on
+  let commAsk = false, commBusy = false;
+  function commUi() {
+    const w = $("div", "ca-comm"), c = commState(), on = !!c.token;
+    const lab = $("label", "ca-auto"), cb = $("input");
+    cb.type = "checkbox"; cb.checked = on || commAsk;
+    cb.disabled = commBusy;
+    cb.onchange = async () => {
+      if (cb.checked && !on) { commAsk = true; renderPanel(); return; }
+      if (!cb.checked && commAsk) { commAsk = false; renderPanel(); return; }
+      if (!cb.checked && on) { commBusy = true; renderPanel(); await commLeave(); commBusy = false; renderPanel(); }
+    };
+    lab.append(cb, "Share anonymous crime numbers, see the community's");
+    w.append(lab);
+    if (commAsk && !on) {
+      const box = $("div", "ca-commask");
+      box.append($("div", "", "Shared with tornbrain.com, per crime option: your tries (rounded down), success rate, $/nerve and skill band. No logs."),
+        $("div", "", "Your key goes there once so it can ask Torn who you are; it keeps a scrambled id and drops the key."),
+        $("div", "", "Numbers show once 5 or more players share. Turn this off any time: everything about you is deleted."));
+      const go = $("button", "ca-pbtn", "Join"), no = $("button", "ca-link", "Not now");
+      go.type = no.type = "button";
+      go.onclick = async e => {
+        e.stopPropagation(); commBusy = true; renderPanel();
+        try { await commJoin(); commAsk = false; } catch (err) { set("community", { err: err.message }); }
+        commBusy = false; renderPanel();
+      };
+      no.onclick = e => { e.stopPropagation(); commAsk = false; renderPanel(); };
+      const row = $("div", "ca-krow"); row.append(go, no);
+      box.append(row);
+      if (!get("sync", {}).done) box.append($("div", "ca-muted", "Your numbers go once your history has finished loading."));
+      w.append(box);
+    }
+    const n = get("communityNumbers", null);
+    const status = commBusy ? "working\u2026" : c.err ? `couldn't reach tornbrain.com: ${c.err}`
+      : on ? (c.at ? `shared ${new Date(c.at).toLocaleDateString()}` : "shares once your history has loaded") +
+             (n && n.players ? ` \u00b7 ${n.players} players` : n ? " \u00b7 under 5 players so far" : "") : "";
+    if (status) w.append($("div", c.err ? "ca-err ca-commst" : "ca-muted ca-commst", status));
+    return w;
   }
 
   // the key: make one on Torn (the link pre-fills a Custom key: logs + item prices), paste it, save
@@ -1226,7 +1515,7 @@ else (function main() {
       const forget = $("button", "ca-link ca-danger", "Remove key and stored logs");
       forget.type = "button";
       forget.onclick = async () => { if (!confirm("Remove your key and the crime logs stored in this browser?")) return;
-        set("key", ""); set("sync", { v: 4, newest: null, oldest: null, done: false }); keyOpen = false; await idb.clear(); await recompute(); renderPanel(); };
+        set("key", ""); if (pdaKey) set("pdaKeyOff", true); set("sync", { v: 4, newest: null, oldest: null, done: false }); keyOpen = false; await idb.clear(); await recompute(); renderPanel(); };
       w.append(forget);
     }
     return w;
@@ -1237,13 +1526,28 @@ else (function main() {
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------
   // Crime Advisor's own additions: the page watcher and the readers skip them, so a chip going in or changing doesn't
   // look like Torn redrawing its page. TornBrain's (for a player running both) are skipped by the readers too.
-  const OURS = ".ca-badge, .ca-pop, .ca-mdot, .ca-panel, .ca-btn";
+  const OURS = ".ca-badge, .ca-pop, .ca-mdot, .ca-panel, .ca-btn, .ca-tip";
   const SKIP = OURS + ", .tb-sb, .tb-badge, .tb-pb, .tb-pop, .tb-choices, .tb-mdot, .tb-uqstar";
   const ownMutation = m => !!(m.target.nodeType === 1 ? m.target : m.target.parentElement)?.closest?.(SKIP) ||
     (m.addedNodes.length + m.removedNodes.length > 0 && [...m.addedNodes, ...m.removedNodes].every(n => n.nodeType === 1 && n.matches(SKIP)));
   const tabKey = t => (t || "").replace(/[^a-z]/gi, "").toLowerCase();
   const current = () => (location.hash.match(/^#\/([a-z-]+)/i) || [])[1] || null;
-  const crimeRoot = () => document.querySelector("[class*='crimes-app'], #react-root, .content-wrapper") || body;
+  // Where the crime's options are: the crimes app. On a phone it didn't hold the job list (Aaron's iPhone in Torn PDA,
+  // Disposal: none of the names on show were in it), so when a crime's options are on the page but not in there, the
+  // search widens: Torn's content area, then the whole page.
+  let rootWide = Math.min(2, +get("rootWide", 0) || 0), widenAt = 0;
+  const crimeRoot = () => (rootWide < 1 && document.querySelector("[class*='crimes-app'], #react-root, .content-wrapper"))
+    || (rootWide < 2 && document.querySelector(".content-wrapper")) || body;
+  function widenRoot(k) {
+    if (rootWide >= 2 || onPage.length || !values || !values.tabs || !(values.tabs[k] || []).length) return;
+    const names = values.tabs[k].flatMap(r => r.find || [r.kind]).map(f => String(f).toLowerCase());
+    const has = el => { const t = ((el && el.innerText) || "").toLowerCase(); return names.some(f => t.includes(f)); };
+    if (has(crimeRoot()) || !has(body)) return;
+    // straight to the first that holds them, and remembered on this device (the phone took a while, a step at a time)
+    rootWide = has(document.querySelector(".content-wrapper")) ? 1 : 2;
+    set("rootWide", rootWide);
+    schedule();
+  }
   let tab = null, since = 0;
 
   // Disposal: each method's reliability, nerve and expected $/nerve (the card's Methods). How reliable a method is
@@ -1303,14 +1607,16 @@ else (function main() {
   // The Crimes hub: each crime's card gets its uniques left ("\u2605 5 left"; all found: the star with its check), as Torn's
   // banner counted them when that crime was last open, else from your logs against the crime's total.
   function hubUniques(root) {
-    const seen = get("uq", {}), logs = summary ? Object.fromEntries(summary.all.crimes.map(c => [CA.slug(c.name), c])) : {};
+    // (from your logs only once all your history is in: half-loaded, every crime looks unfound; Aaron's phone showed
+    // Shoplifting "59 left" two minutes into loading)
+    const seen = get("uq", {}), histDone = !!get("sync", {}).done, logs = summary ? Object.fromEntries(summary.all.crimes.map(c => [CA.slug(c.name), c])) : {};
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), done = new Set(), hosts = [];
     for (let n = w.nextNode(); n; n = w.nextNode()) {
       const t = n.nodeValue.trim(), k = tabKey(t), host = n.parentElement;
       if (t.length < 4 || t.length > 30 || done.has(k) || !host || host.closest(SKIP) || !host.closest("a[href*='#/']")) continue;
       let u = seen[k] ? { found: seen[k][0], total: seen[k][1], est: false } : null;
-      if (!u && logs[k] && UQ_TOTAL[logs[k].id]) u = { found: Math.min(logs[k].uniques || 0, UQ_TOTAL[logs[k].id]), total: UQ_TOTAL[logs[k].id], est: true };
-      if (!u || !u.total) continue;
+      if (!u && histDone && logs[k] && UQ_TOTAL[logs[k].id]) u = { found: Math.min(logs[k].uniques || 0, UQ_TOTAL[logs[k].id]), total: UQ_TOTAL[logs[k].id], est: true };
+      if (!u || !u.total) { host.querySelector(":scope > .ca-hubuq")?.remove(); continue; }
       done.add(k);
       hosts.push([host, u, k]);
     }
@@ -1373,6 +1679,30 @@ else (function main() {
     }
   }
 
+  // A phone's narrow picker can push a chip past its edge (Aaron's iPhone, Forgery's projects: "Ordination Certificate
+  // C $2.4..." cut off): then the chip keeps its tier alone; the number is in its label and its card.
+  // (measured with the number shown, once the picker has finished opening: mid-animation every chip looked too wide)
+  function fitChip(b) {
+    if (!b.isConnected) return;
+    b.classList.remove("mini");
+    let clip = b.parentElement;
+    while (clip && clip !== body) {
+      const cs = getComputedStyle(clip);
+      if (cs.overflowX !== "visible" || cs.overflow !== "visible") break;
+      clip = clip.parentElement;
+    }
+    const edge = clip && clip !== body ? clip.getBoundingClientRect().right : innerWidth;
+    // past the list's edge, or squeezed by the row (Disposal on a phone: "C $26..." between the name and the icons)
+    // ...or pushed onto a line of its own under a long name (a phone's rows are one line high)
+    let wrapped = false;
+    const tn = [...b.parentElement.childNodes].find(x => x.nodeType === 3 && x.nodeValue.trim());
+    if (tn) {
+      const r = document.createRange(); r.selectNodeContents(tn);
+      const lines = r.getClientRects(), last = lines[lines.length - 1];
+      if (last) wrapped = b.getBoundingClientRect().top >= last.bottom - 2;
+    }
+    b.classList.toggle("mini", b.getBoundingClientRect().right > edge - 2 || b.scrollWidth > b.clientWidth + 1 || wrapped);
+  }
   // ---- the chip on each option (Glance): a tier and one number. The tier compares it with your average $/nerve
   // across all crimes (values.overall); S is also the best of the options on show.
   const TILE = { S: "S", A: "A", B: "B", C: "C", X: "\u2715", Q: "?", W: "\u26a0", G: "\u2713" };
@@ -1431,6 +1761,16 @@ else (function main() {
   // Burglary's "Any Industrial" (a random target of that kind, 3 nerve to scout; a type of your choice is 9): the
   // types listed with it in Torn's menu, blended by how often you've burgled each.
   const chipV = new WeakMap();
+  // A phone's pickers (Aaron, 2026-10-17: tapping an option opened the chip's card instead of choosing it): the chip
+  // lets taps through to Torn's option and, in an open list, sits at the option's right edge, clear of the name
+  function pickRight(b, host) {
+    if (!matchMedia("(max-width:600px)").matches) return;
+    b.classList.add("pick");
+    const opt = host.closest("li, [role='option']");
+    if (!opt) return;
+    if (getComputedStyle(opt).position === "static") opt.style.position = "relative";
+    b.classList.add("pick-r");
+  }
   function anyChips(root, k) {
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = w.nextNode(); n; n = w.nextNode()) {
@@ -1447,9 +1787,11 @@ else (function main() {
       b?.remove();
       b = $("span", `ca-badge ca-hud ca-any ${tier}`);
       b.dataset.sig = sig;
-      b.append($("span", "ca-t", TILE[tier]), $("span", "ca-v", `${short(pn)}/n`));
+      // (a phone: the grade alone, as every chip there; "Any Industrial A $3.4k" ran off the scout menu's edge)
+      b.append($("span", "ca-t", TILE[tier]), $("span", "ca-v", matchMedia("(max-width:600px)").matches ? "" : `${short(pn)}/n`));
       b.title = `${t}: a random target of this kind (${CA.SCOUT_ANY} nerve to scout). The ${vs.length} types listed with it, blended by your burgles of each: ${short(pn)}/nerve`;
       host.appendChild(b);
+      pickRight(b, host);
     }
   }
   // Bootlegging: which genre to copy next. Buyers want genres in fixed proportions (community guides, 2023-24):
@@ -1589,13 +1931,15 @@ else (function main() {
       const raw = n.nodeValue.trim(), t = raw.toLowerCase();
       if (t.length < 3 || t.length > 60 || !byName.has(t)) continue;
       const host = n.parentElement;  // (raw: the name as Torn's page shows it, for the card; the logs say "the pharmacy")
-      if (host && !host.closest(SKIP)) hits.push([host, byName.get(t), chipSlot(host, k).querySelector(":scope > .ca-chip"), raw]);
+      // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips)
+      if (host && !host.closest(SKIP) && !host.closest("[class*='slidingPanel'], [class*='statistic']"))
+        hits.push([host, byName.get(t), chipSlot(host, k).querySelector(":scope > .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)
     const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null).map(pnOf));
     // (a chip already on is only looked at again when Torn's unique star might have come or gone, the best changed,
     // your nerve did, or the numbers were recomputed)
-    const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow();
+    const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow(), phone = matchMedia("(max-width:600px)").matches;
     for (const [host, v, had, raw] of hits) {  // inside the name's own element: the page redrawing it just clears the chip
       // (two names in one row can lead to the same slot, e.g. Forgery's step label: one chip)
       const slot = chipSlot(host, k), cur = slot.querySelector(":scope > .ca-chip");
@@ -1612,19 +1956,19 @@ else (function main() {
       const need = k !== "arson" || collect || short100 ? null : nerveFor(v), low = !!need && nv != null && need > nv;
       const picker = !!host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']");
       // (Disposal's name column is narrow, and Torn's pickers too: "$2.2k" without "/n")
-      const tight = k === "disposal" || picker, text = chipText(v, tier, short100, pct).replace(tight ? /\/n$/ : /^$/, "");
+      const tight = k === "disposal" || picker || phone, text = chipText(v, tier, short100, pct).replace(tight ? /\/n$/ : /^$/, "");
       const sig = [tier, star ? 1 : 0, text, needs.join(","), low ? 1 : 0, version].join("|");
       if (had) {
         Object.assign(had.dataset, { best: String(best), nerve: String(nv), v: String(version), star: star ? "1" : "0" });
         if (had.dataset.sig === sig) continue;
         had.remove();
       }
-      const b = $("button", `ca-badge ca-hud ca-chip ${tier}${tight ? " tight" : ""}${k === "forgery" ? " step" : ""}`), val = $("span", "ca-v");
+      const b = $("button", `ca-badge ca-hud ca-chip ${tier}${tight ? " tight" : ""}${picker ? " pick" : ""}${k === "forgery" ? " step" : ""}`), val = $("span", "ca-v");
       b.type = "button";
       Object.assign(b.dataset, { star: star ? "1" : "0", sig, best: String(best), nerve: String(nv), v: String(version), avg: v.avg_net || "" });
       if (star) val.append($("span", "ca-star", "\u2605"));  // (one star a row, in the chip: Torn shows a unique waiting now)
       if (low) val.append($("span", "ca-bolt", "\u26a1"));
-      val.append(text);
+      if (!phone) val.append(text);  // (a phone: the grade alone, Aaron 2026-10-17; the number is in the card and the label)
       b.append($("span", "ca-t", TILE[tier]), val);
       const avg = values.overall;
       b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
@@ -1639,6 +1983,8 @@ else (function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
+      if (picker) pickRight(b, host);
+      if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
       if (v.methods) markMethods(row, v);
     }
@@ -1788,6 +2134,9 @@ else (function main() {
     dig.hidden = true;
     more.onclick = e => { e.stopPropagation(); dig.hidden = !dig.hidden; more.textContent = dig.hidden ? "More \u25be" : "Less \u25b4"; place(); };
     ft.append(more);
+    const cm = commFor(v);  // (opt-in community numbers: players at your skill where there are 5+, else everyone's)
+    if (cm) pill("", `Community ${short(cm.p50)}/n`, `${cm.skill ? "Players at your skill" : "Players"}: ${short(cm.p50)}/nerve in the middle` +
+      `; the middle half of all players ${short(cm.row.p25)}\u2013${short(cm.row.p75)} (${cm.n} players, from tornbrain.com)`);
     pop.append(ft, dig);
     // Dig: folded sections, a one-line summary each
     const sec = (title, sub, kids, open, tip) => {
@@ -1912,7 +2261,8 @@ else (function main() {
       setTimeout(() => e.classList.remove("ca-flash"), 3400);
     }
   }
-  function drawBest(k) {
+  // What to do, for the panel's Best crimes and the button's glance
+  function plan(k) {
     const src = values || {}, lead = src.leaders || {}, crimes = src.crimes || {};
     // Worth doing here: options at or above your average. None: just the best on show, as one muted row, so the
     // crimes worth doing elsewhere get the room (Aaron, 2026-10-17: on Pickpocketing only waiting for a Cyclist was
@@ -1925,6 +2275,10 @@ else (function main() {
     // elsewhere: what beats the best you can do here now (waiting for a mark is a maybe), and is at your average
     const elsewhere = Object.entries(lead).filter(([t, x]) => t !== k && reach(x) > top && (!avg || reach(x) >= avg))
       .sort((a, b) => reach(b[1]) - reach(a[1])).slice(0, 3);
+    return { src, crimes, avg, here, weak, wait, elsewhere };
+  }
+  function drawBest(k) {
+    const { src, crimes, avg, here, weak, wait, elsewhere } = plan(k);
     const sig = JSON.stringify([k, here.map(x => [x.name, x.pn, x.tier, x.est]), weak && [weak.name, weak.pn, weak.tier], wait, elsewhere, avg]);
     if (bestBox.dataset.sig === sig) return;
     bestBox.dataset.sig = sig;
@@ -1982,13 +2336,38 @@ else (function main() {
     }
   }
   // The button is a glance too: the best option on show ("Crime Advisor \u00b7 S Pharmacy").
+  // Two lines (Aaron, 2026-10-17: it fits the space beside Torn's chat bar on a phone): "Crime Advisor", then the one
+  // thing to do: the best here at your average or above, else what to wait for here, else the best crime elsewhere,
+  // else (muted) the best on show. On the hub: the best crime.
   function glance() {
-    const x = tab ? onPage[0] : null, sig = x ? `${x.tier}|${x.name}|${x.pn}` : "";
+    const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere } = plan(k);
+    let tier = null, line = "", tip = "", muted = false;
+    if (here.length) {
+      const x = here[0]; tier = x.tier; line = x.name;
+      tip = `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
+    } else if (wait) {
+      line = `\u23f3 ${wait.name}`;  // (the hourglass says wait or scout: "Scout for Foundry" didn't fit beside the chat bar)
+      tip = `Nothing here beats your average now: ${wait.verb} ${wait.name} (${short(wait.per_nerve)}/nerve)`;
+    } else if (elsewhere.length) {
+      const [t, x] = elsewhere[0], w = x.ideal && x.ideal.per_nerve >= (x.per_nerve || 0) ? x.ideal : null;
+      // (one to wait for reads as the wait, as on its own page: "Wait for Cyclist", not "Pickpocketing - Cyclist")
+      line = w ? `\u23f3 ${w.name}` : `\u2192 ${crimes[t] || t}`;  // (the crime's own page shows which job)
+      tip = `${k ? "Better elsewhere" : "Your best crime"}: ${crimes[t] || t}, ${w ? `${w.verb} ${w.name}` : x.name} (${short(w ? w.per_nerve : x.per_nerve)}/nerve)`;
+    } else if (weak) {
+      tier = weak.tier; line = weak.name; muted = true;
+      tip = `The best on show, below your average: ${weak.name}, ${short(weak.pn)}/nerve`;
+    }
+    const sig = `${tier}|${line}|${muted}`;
     if (btn.dataset.sig === sig) return;
     btn.dataset.sig = sig;
-    btn.replaceChildren("Crime Advisor");
-    btn.title = x ? `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})` : "";
-    if (x) btn.append(" \u00b7", $("span", `ca-tier ${x.tier}`, TILE[x.tier]), $("span", "ca-bn", x.name));
+    btn.replaceChildren($("span", "ca-bt", "Crime Advisor"));
+    btn.title = tip;
+    if (line) {
+      const a = $("span", `ca-ba${muted ? " muted" : ""}`);
+      if (tier) a.append($("span", `ca-tier ${tier}`, TILE[tier]));
+      a.append($("span", "ca-bn", line));
+      btn.append(a);
+    }
   }
 
   // ---- watching the page: Torn switches crimes without a page load. The chips go on as soon as a crime's names are
@@ -2010,7 +2389,7 @@ else (function main() {
       // (Torn can keep the title's element from one crime to the next: the last crime's badges go)
       root.querySelectorAll(".ca-uq, .ca-title, .ca-path, .ca-skim").forEach(b => { if (b.dataset.tab !== k) b.remove(); });
       headerUniques(root, k);
-      if (values) { badges(root, k); titleGrade(root, k); pathChip(root, k); }
+      if (values) { badges(root, k); titleGrade(root, k); pathChip(root, k); if (Date.now() - widenAt > 3000) { widenAt = Date.now(); widenRoot(k); } }
       if (k === "bootlegging") copyNext(root);
       outcomeValues(root);
     } else {  // the Crimes hub
@@ -2020,8 +2399,59 @@ else (function main() {
     }
     drawBest(tab ? k : null);
     glance();
+    bottomClear();
   }
   const schedule = () => { if (!looking) looking = setTimeout(look, LOW ? 400 : 150); };
+  // On a phone Torn's chat bar is fixed across the bottom of the screen (Aaron's iPhone in Torn PDA, 2026-10-17: it
+  // covered the bottom of the panel). The button and the panel sit just above whatever Torn has fixed down there.
+  var clearAt = 0;  // (var: the panel can open, on its own, before this line has run)
+  function bottomClear() {
+    if (Date.now() - clearAt < 2000) return;
+    // (not mid-bounce: pulling past the end of an iPhone page springs Torn's bar up and back, and measured then the
+    // button stayed under the bar for a while; Aaron, 2026-10-17)
+    const max = document.documentElement.scrollHeight - innerHeight;
+    if (scrollY < 0 || scrollY > max + 1) { setTimeout(() => { clearAt = 0; bottomClear(); }, 200); return; }
+    clearAt = Date.now();
+    let h = 0, left = innerWidth;
+    for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
+      for (const el of document.elementsFromPoint(x, innerHeight - 4)) {
+        if (el.closest(OURS) || el === document.documentElement || el === body) continue;
+        // A bar is fixed or sticky AND pinned to the bottom (its CSS bottom set): Torn's chat bar is sticky. Something
+        // pinned to the top only reaches the bottom edge at the end of the page (it left the button mid-screen), and
+        // a tall overlay isn't a bar: then the bar is the biggest short box from the tapped spot up that hugs the bottom.
+        for (let n = el; n && n !== body; n = n.parentElement) {
+          const cs = getComputedStyle(n);
+          if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+          if (cs.bottom === "auto") break;
+          let top = innerHeight;
+          for (let m = el; m; m = m === n ? null : m.parentElement) {
+            const r = m.getBoundingClientRect();
+            if (r.height > innerHeight * 0.25 || r.bottom < innerHeight - 8) break;
+            top = Math.min(top, r.top);
+          }
+          if (top < innerHeight) h = Math.max(h, innerHeight - top);
+          // where the bar's own pieces start (its box can span the screen while its icons sit on the right): the
+          // leftmost small box in it at the bottom of the screen
+          for (const c of n.querySelectorAll("*")) {
+            const r = c.getBoundingClientRect();
+            if (r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight) left = Math.min(left, r.left);
+          }
+          if (left === innerWidth) left = Math.min(left, n.getBoundingClientRect().left);  // (a bar with no pieces of its own)
+          break;
+        }
+      }
+    }
+    // The button: beside the bar when the space to its left fits it (Aaron's iPhone: about 40% of the width), else above
+    const de = document.documentElement.style, room = Math.floor(left - 18), beside = h > 0 && room >= 120;
+    de.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
+    de.setProperty("--ca-btn-lift", beside ? "0px" : `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
+    if (beside) de.setProperty("--ca-room", `${room}px`); else de.removeProperty("--ca-room");
+    barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${beside ? " (button beside it)" : " (button above it)"}` : "none";
+  }
+  var barSeen = "not measured";  // (var: the panel can ask before this line has run)
+  addEventListener("resize", () => { clearAt = 0; bottomClear(); });
+  let scrollT = null;  // (and again once a scroll settles)
+  addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(() => { clearAt = 0; bottomClear(); }, 250); }, { passive: true });
   const lastSeen = {};
   function seenTick() {
     if (current() !== tab) { schedule(); return; }
