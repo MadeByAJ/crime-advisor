@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.2
+// @version      2.3.3
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,8 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.2";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.3";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_CHANNEL = "beta";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1839,7 +1840,7 @@ else (async function main() {
   }
 
   // ---------------- update notices (opt-in): "Update ready" when tornbrain.com has a newer version ----------------
-  // Off unless you turn it on. Then once a day it asks api.tornbrain.com for the latest version number; nothing about
+  // Off unless you turn it on. Then every 6 hours it asks api.tornbrain.com for the latest version number; nothing about
   // you is sent, and the server keeps only how many checks came in that day. (Tampermonkey also updates by itself;
   // this says so in the panel, and covers Torn PDA, whose updates wait for you to look.)
   const newer = (a, b) => {
@@ -1850,13 +1851,16 @@ else (async function main() {
   const updReady = () => !!get("updates", false) && newer(get("updLatest", ""), CA_VERSION);
   async function updCheck(force) {
     if (!get("updates", false)) return;
-    if (!force && Date.now() - get("updChecked", 0) < 86400000) return;
+    // every 6 hours, and straight after an update is installed (a day between checks missed the next of several
+    // releases in one day; Aaron, 2026-10-19)
+    if (!force && Date.now() - get("updChecked", 0) < 6 * 3600000 && get("updFor", "") === CA_VERSION) return;
     try {
       const r = await http({ method: "GET", url: `${COMMUNITY}/v1/version` });
       const j = JSON.parse(r.responseText || "{}");
-      set("updChecked", Date.now());
+      set("updChecked", Date.now()); set("updFor", CA_VERSION);
       if (j.version) set("updLatest", j.version);
-      if (j.url) set("updUrl", j.url);
+      // (a beta install updates from the beta copy: the public one would install beside it in Torn PDA)
+      if (j.url) set("updUrl", CA_CHANNEL === "beta" ? j.url.replace(/\/crime-advisor\.user\.js$/, "/beta/crime-advisor.user.js") : j.url);
     } catch (e) { /* tried again tomorrow, or when you turn it on */ }
     glance();
     if (panel) renderPanel();
@@ -1866,7 +1870,7 @@ else (async function main() {
     cb.type = "checkbox"; cb.checked = !!get("updates", false);
     cb.onchange = async () => { set("updates", cb.checked); if (cb.checked) await updCheck(true); else { glance(); renderPanel(); } };
     lab.append(cb, "Tell me when there's an update");
-    lab.title = "Once a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
+    lab.title = "A few times a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
     return lab;
   }
   function updNotice() {
@@ -1919,7 +1923,7 @@ else (async function main() {
   // page tracking before it existed, threw, and stuck as a bare title under Torn's chat bar; Aaron's iPhone, 2.2.2)
   // (not on a phone: there the panel is a sheet over the page, so it opens only when you ask; Aaron, 2026-10-18)
   const phoneNow = () => matchMedia("(max-width:600px)").matches;
-  setTimeout(() => updCheck(false), 4000);  // (once a day, when you've turned update notices on)
+  setTimeout(() => updCheck(false), 4000);  // (every 6 hours, when you've turned update notices on)
   if (onCrimes && !phoneNow() && get("key", "") && get("autoOpen", false)) setTimeout(() => { if (!panel) btn.onclick(); }, 0);
 
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------

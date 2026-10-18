@@ -93,7 +93,7 @@ Off unless you turn it on in the panel's footer. Then each card can show what pl
 | Purpose of use | Personal: your own $/nerve per crime. |
 | Key storage & sharing | Stored in Tampermonkey on this browser (in Torn PDA: on your phone). Sent to `api.torn.com`; if you join Community numbers, once to `api.tornbrain.com`, which doesn't keep it. |
 | Key access level | Custom: `log`, plus `items` (Torn section) for market prices. |
-| Update notices | Off unless you turn them on in the panel. Then once a day it asks `api.tornbrain.com` for the latest version number. Nothing about you is sent; the server keeps only a daily count of checks. |
+| Update notices | Off unless you turn them on in the panel. Then every 6 hours (and once after an update) it asks `api.tornbrain.com` for the latest version number. Nothing about you is sent; the server keeps only a daily count of checks. |
 | Other downloads | Public arson recipes from `balaclava.app` (the Arsonist's Ledger), once a day. No key is sent with it. |
 
 Each browser keeps its own copy, so a second computer downloads your history again.

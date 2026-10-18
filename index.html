@@ -145,7 +145,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.3.2</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.3.3</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -244,11 +244,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 3140 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 3144 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.2
+// @version      2.3.3
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -962,7 +962,8 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.2";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.3";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2086,7 +2087,7 @@ else (async function main() {
   }
 
   // ---------------- update notices (opt-in): "Update ready" when tornbrain.com has a newer version ----------------
-  // Off unless you turn it on. Then once a day it asks api.tornbrain.com for the latest version number; nothing about
+  // Off unless you turn it on. Then every 6 hours it asks api.tornbrain.com for the latest version number; nothing about
   // you is sent, and the server keeps only how many checks came in that day. (Tampermonkey also updates by itself;
   // this says so in the panel, and covers Torn PDA, whose updates wait for you to look.)
   const newer = (a, b) =&gt; {
@@ -2097,13 +2098,16 @@ else (async function main() {
   const updReady = () =&gt; !!get("updates", false) &amp;&amp; newer(get("updLatest", ""), CA_VERSION);
   async function updCheck(force) {
     if (!get("updates", false)) return;
-    if (!force &amp;&amp; Date.now() - get("updChecked", 0) &lt; 86400000) return;
+    // every 6 hours, and straight after an update is installed (a day between checks missed the next of several
+    // releases in one day; Aaron, 2026-10-19)
+    if (!force &amp;&amp; Date.now() - get("updChecked", 0) &lt; 6 * 3600000 &amp;&amp; get("updFor", "") === CA_VERSION) return;
     try {
       const r = await http({ method: "GET", url: `${COMMUNITY}/v1/version` });
       const j = JSON.parse(r.responseText || "{}");
-      set("updChecked", Date.now());
+      set("updChecked", Date.now()); set("updFor", CA_VERSION);
       if (j.version) set("updLatest", j.version);
-      if (j.url) set("updUrl", j.url);
+      // (a beta install updates from the beta copy: the public one would install beside it in Torn PDA)
+      if (j.url) set("updUrl", CA_CHANNEL === "beta" ? j.url.replace(/\/crime-advisor\.user\.js$/, "/beta/crime-advisor.user.js") : j.url);
     } catch (e) { /* tried again tomorrow, or when you turn it on */ }
     glance();
     if (panel) renderPanel();
@@ -2113,7 +2117,7 @@ else (async function main() {
     cb.type = "checkbox"; cb.checked = !!get("updates", false);
     cb.onchange = async () =&gt; { set("updates", cb.checked); if (cb.checked) await updCheck(true); else { glance(); renderPanel(); } };
     lab.append(cb, "Tell me when there's an update");
-    lab.title = "Once a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
+    lab.title = "A few times a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
     return lab;
   }
   function updNotice() {
@@ -2166,7 +2170,7 @@ else (async function main() {
   // page tracking before it existed, threw, and stuck as a bare title under Torn's chat bar; Aaron's iPhone, 2.2.2)
   // (not on a phone: there the panel is a sheet over the page, so it opens only when you ask; Aaron, 2026-10-18)
   const phoneNow = () =&gt; matchMedia("(max-width:600px)").matches;
-  setTimeout(() =&gt; updCheck(false), 4000);  // (once a day, when you've turned update notices on)
+  setTimeout(() =&gt; updCheck(false), 4000);  // (every 6 hours, when you've turned update notices on)
   if (onCrimes &amp;&amp; !phoneNow() &amp;&amp; get("key", "") &amp;&amp; get("autoOpen", false)) setTimeout(() =&gt; { if (!panel) btn.onclick(); }, 0);
 
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------
@@ -3432,7 +3436,7 @@ else (async function main() {
         <tr><th scope="row">Purpose of use</th><td>Personal: your own $/nerve per crime.</td></tr>
         <tr><th scope="row">Key storage &amp; sharing</th><td>Stored in Tampermonkey on this browser (in Torn PDA: on your phone). Sent to <code>api.torn.com</code>; if you join Community numbers, once to <code>api.tornbrain.com</code>, which doesn't keep it.</td></tr>
         <tr><th scope="row">Key access level</th><td>Custom: <code>log</code>, plus <code>items</code> from the Torn section for market prices.</td></tr>
-        <tr><th scope="row">Update notices</th><td>Off unless you turn them on in the panel. Then once a day it asks <code>api.tornbrain.com</code> for the latest version number. Nothing about you is sent; the server keeps only how many checks came in each day.</td></tr>
+        <tr><th scope="row">Update notices</th><td>Off unless you turn them on in the panel. Then every 6 hours (and once after an update) it asks <code>api.tornbrain.com</code> for the latest version number. Nothing about you is sent; the server keeps only how many checks came in each day.</td></tr>
         <tr><th scope="row">Other downloads</th><td>Public arson recipes from <code>balaclava.app</code> (the Arsonist's Ledger), once a day. No key is sent with it.</td></tr>
       </table>
     </div>
