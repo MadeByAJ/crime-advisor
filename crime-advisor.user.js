@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.26
+// @version      2.2.27
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -317,9 +317,22 @@ const CA = (() => {
     "document": "o y g* r r", "firearm": "o y* - g r", "general waste": "y* g g o r", "industrial waste": "o y* - g -",
     "murder weapon": "o y - g* r", "old furniture": "y o* g y r", "broken appliance": "o o - g* r", "vehicle": "o* - g g -" };
   const CHART_ODDS = { g: 0.95, y: 0.82, o: 0.65, r: 0.10 }, CHART_WEIGHT = 8;  // the chart counts as 8 attempts of your own
-  const PICK_TRIES = 15, PICK_EDGE = 1.15;  // your own method over the chart's: this many tries, this much better
+  // What each method nets per nerve, materials in, at max skill (the Emforus Crime Profitability Index, fetched
+  // 2026-10-18; same columns, null = not listed). It starts each method's expected $/nerve, counted as CHART_WEIGHT
+  // tries, and your own record takes over. It's why the pick is no longer the chart's *: that marks where the job's
+  // one-time unique is, not the method to use (2.2.21-2.2.26 picked it: Abandon on a Vehicle, -$3.3k/nerve). Abandon
+  // really is the money pick for most jobs; not for a Vehicle or Murder Weapon, where it eats Bleach and Paper Towels.
+  const DISPOSAL_GUIDE = {
+    "dead body": [18540, 5940, 12286, -15989, -22002], "body part": [9475, 6056, 6188, 4941, -1385],
+    "firearm": [4882, 4203, null, 3135, -6360], "murder weapon": [-513, 4306, null, 3080, -6360],
+    "biological waste": [3688, 3071, 2008, 2305, null], "industrial waste": [3013, 2640, null, 1948, null],
+    "vehicle": [-3275, null, 1409, 1115, null], "document": [1293, 1111, 933, 0, -6360],
+    "building debris": [1288, 785, null, 731, null], "broken appliance": [651, 429, null, 363, -6360],
+    "old furniture": [423, 258, 247, 208, -6360], "general waste": [298, 244, 150, 120, -6360] };
   function disposalMethods(job, stats) {
-    const chart = (DISPOSAL_CHART[job.toLowerCase().replace(/s$/, "")] || DISPOSAL_CHART[job.toLowerCase()] || "? ? ? ? ?").split(" ");
+    const key = job.toLowerCase().replace(/s$/, "");
+    const chart = (DISPOSAL_CHART[key] || DISPOSAL_CHART[job.toLowerCase()] || "? ? ? ? ?").split(" ");
+    const guide = DISPOSAL_GUIDE[key] || DISPOSAL_GUIDE[job.toLowerCase()] || [null, null, null, null, null];
     const done = Object.values(stats).filter(t => t.success > (t.uniques || 0));  // (what a job pays: not its one-time uniques)
     const paid = done.reduce((s, t) => s + t.success - (t.uniques || 0), 0);
     const pay = paid ? done.reduce((s, t) => s + t.money + t.itemValue - (t.uniqueNet || 0), 0) / paid : null;
@@ -331,8 +344,10 @@ const CA = (() => {
       const prior = CHART_ODDS[rating];
       const p = prior != null ? (ok + CHART_WEIGHT * prior) / (n + CHART_WEIGHT) : n ? ok / n : null;
       const nerve = n ? t.nerve / n : DISPOSAL_NERVE[m], cost = n ? t.itemCost / n : 0;
-      const ev = p != null && pay != null ? (p * pay - cost) / nerve : null;
-      return { method: m, rating, star, available: true, tries: n, ok, crits: t.crit || 0, p: p != null ? Math.round(p * 1000) / 1000 : null,
+      let ev = p != null && pay != null ? (p * pay - cost) / nerve : null;
+      const g = guide[i];
+      if (g != null) ev = n && ev != null ? (n * ev + CHART_WEIGHT * g) / (n + CHART_WEIGHT) : g;  // (the guide's, as CHART_WEIGHT tries)
+      return { method: m, rating, star, available: true, tries: n, ok, guide: g, crits: t.crit || 0, p: p != null ? Math.round(p * 1000) / 1000 : null,
                nerve: Math.round(nerve * 10) / 10, ev: ev != null ? Math.round(ev) : null,
                per_nerve: n && (pn = ahead(t.money + t.itemValue - t.itemCost, t.nerve, t)) != null ? Math.round(pn) : null };
     });
@@ -340,11 +355,8 @@ const CA = (() => {
     const score = m => m.ev != null ? m.ev : m.p / m.nerve;  // same pay whichever way: odds per nerve
     const best = live.reduce((a, m) => !a || score(m) > score(a) ? m : a, null);
     const steady = live.reduce((a, m) => !a || m.p > a.p || (m.p === a.p && m.nerve < a.nerve) ? m : a, null);
-    // the one to use: the chart's starred method, unless your own record with another clearly beats it (as crimes.py)
-    const starred = live.find(m => m.star) || best;
-    const mine = live.filter(m => m.tries >= PICK_TRIES && m.ev != null && starred && starred.ev != null && m.ev > starred.ev * PICK_EDGE);
-    const pick = mine.length ? mine.reduce((a, m) => m.ev > a.ev ? m : a) : starred;
-    return { methods, pay: pay ? Math.round(pay) : null, best: best && best.method, steady: steady && steady.method, pick: pick && pick.method };
+    // the one to use: the best expected $/nerve, the guide's to start with (not the chart's *, the unique's method)
+    return { methods, pay: pay ? Math.round(pay) : null, best: best && best.method, steady: steady && steady.method, pick: best && best.method };
   }
 
   // What a try at one spot brings (the card's odds and top items; TornBrain's outcomes()): how often it works, fails or
@@ -600,12 +612,21 @@ const CA = (() => {
          "Funeral Parlor": 1704, "Farmhouse": 1702, "Printing Works": 1549, "Tool Shed": 1483, "Cottage": 1474 },
   };
   const gkey = s => String(s).toLowerCase().replace(/^(the|a|an) /, "").replace(/[^a-z0-9]/g, "");
-  function applyGuide(tabs, overall) {
+  // The guide is at max skill: a mark that's dangerous below a skill isn't suggested (or blended in) until then.
+  // Emforus's pickpocketing ladder (2025): unsafe marks from 40, risky ones about 65, the Cyclist 80; the Mobster
+  // "ideally entirely" avoided and police never (as crimes.py GUIDE_MIN_SKILL)
+  const GUIDE_MIN_SKILL = { 5: {
+    ...Object.fromEntries(["Young man", "Young woman", "Student", "Classy lady", "Laborer", "Postal worker"].map(n => [n, 10])),
+    ...Object.fromEntries(["Rich kid", "Sex worker", "Thug"].map(n => [n, 40])),
+    ...Object.fromEntries(["Jogger", "Businessman", "Businesswoman", "Gang member"].map(n => [n, 65])),
+    "Cyclist": 80, "Mobster": 90, "Police officer": 100 } };
+  function applyGuide(tabs, overall, skill = {}) {
     for (const [cid, table] of Object.entries(GUIDE)) {
       const c = +cid, rows = (tabs[slug(NAMES[c])] ||= []);
-      const have = new Map(rows.map(r => [gkey(r.kind), r]));
+      const have = new Map(rows.map(r => [gkey(r.kind), r])), s = skill[slug(NAMES[c])];
       for (const [name, g] of Object.entries(table)) {
-        const r = have.get(gkey(name));
+        const r = have.get(gkey(name)), need = (GUIDE_MIN_SKILL[c] || {})[name] || 0;
+        if (need && (s == null || s < need)) continue;
         if (!r) rows.push({ crime_id: c, kind: name, find: c === 1 ? [`Search the ${name}`, `Search ${name}`] : [name], per_nerve: g,
                             few: false, count: 0, unit: "tries", source: "guide", guide: g, worth: !!overall && g >= overall });
         else if (GUIDE_BLEND.has(c)) {
@@ -628,7 +649,7 @@ const CA = (() => {
       (tabs[slug(NAMES[k.crime_id])] ||= []).push({ ...k, find: [...new Set(find.filter(f => f.length >= 3))],
         worth: !k.few && (k.vs_crime || 0) >= 1 && k.per_nerve >= overall });
     }
-    applyGuide(tabs, overall);
+    applyGuide(tabs, overall, rep.skill || {});
     // arson jobs you've never done: the community recipe is all there is to go on
     const done = new Set((tabs.arson || []).map(v => jobTitle(v.kind)));
     const arsonBase = (rep.crimes.find(c => c.id === ARSON) || {}).per_nerve;
@@ -653,7 +674,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.26";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.27";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1751,7 +1772,7 @@ else (async function main() {
       tr.append(name,
         cell(m.p == null ? "\u2013" : `${Math.round(m.p * 100)}%`, `${word}: ${m.tries ? `${m.ok} of your ${m.tries} worked` : "you haven't tried it"}; the community chart counts as 8 tries`),
         cell(String(Math.round(m.nerve))),
-        cell(m.ev == null ? "\u2013" : `${m.tries ? "" : "~"}${short(m.ev)}/n`, m.tries ? "chance it works x what the job pays, less the materials you used, over the nerve" : "chance it works x what the job pays, over the nerve: before materials (you have not tried it, so their cost is unknown)"),
+        cell(m.ev == null ? "\u2013" : `${m.tries ? "" : "~"}${short(m.ev)}/n`, m.tries ? "chance it works x what the job pays, less the materials you used, over the nerve" : m.guide != null ? "the guide's figure (max skill, materials in): you have not tried it yet" : "chance it works x what the job pays, over the nerve: before materials (you have not tried it, so their cost is unknown)"),
         cell(m.tries ? String(m.crits) : "\u2013", "critical fails: jail or hospital"));
       t.append(tr);
     }
@@ -1928,23 +1949,18 @@ else (async function main() {
   const levelled = v => !!v.level && v.level.steps >= LEVEL_MIN;
   // (a tool lost costs a grade: over $500 a step, or a tool with no price yet)
   const costly = L => L.tools_lost > 0 && (L.lost_per_step >= LOST_STEP || !L.lost_per_step);
-  // Projects two tiers or more under your newest (Level 1 ones at skill 50+): taken to give little XP (unverified; his
-  // logs only show Level 25 at skill 50 levelling about as fast as Level 50 at 60), and their record is from low skill
-  const tooEasy = v => {
-    const s = values && values.crime_skill ? values.crime_skill.forgery : null, at = (UNLOCK_AT.forgery || {})[CA.gkey(v.kind)];
-    return s != null && at != null && at < Math.min(75, Math.floor(s / 25) * 25) - 25;
-  };
+  // (every step gives the same skill whatever the project, except the last, which has a project multiplier: Emforus,
+  // 340k logs; "Drivers' Licenses ... you can easily reach max skill doing only drivers' licenses". So a low project
+  // isn't marked down, and 2.2.26's "too easy" is gone.)
   function levelTier(v) {
-    if (tooEasy(v)) return "C";
     if (!levelled(v)) return "Q";
     const t = (LEVEL_TIERS.find(([r]) => v.level.rate <= r) || [0, "C"])[1];
     return costly(v.level) ? DOWN[t] : t;
   }
-  const levelScore = v => !levelled(v) || tooEasy(v) ? 1 : v.level.rate + (costly(v.level) ? 0.03 : 0);
-  const levelText = v => tooEasy(v) ? "too easy" : !v.level ? "untried" : !levelled(v) ? "few" : `crit 1/${Math.round(1 / v.level.rate)}`;
+  const levelScore = v => !levelled(v) ? 1 : v.level.rate + (costly(v.level) ? 0.03 : 0);
+  const levelText = v => !v.level ? "untried" : !levelled(v) ? "few" : `crit 1/${Math.round(1 / v.level.rate)}`;
   function levelTip(v, s) {
     const L = v.level, pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-    if (tooEasy(v)) return `For levelling (you're at skill ${s}): too far under your skill to teach you much; pick a newer project.`;
     return `For levelling (you're at skill ${s}): ` + (L ? `${pl(L.crits, "critical fail")} in your last ${pl(L.steps, "step")}` +
       (L.tools_lost ? `, ${pl(L.tools_lost, "tool")} lost${L.lost_per_step ? ` (~${short(L.lost_per_step)} a step)` : ""}` : ", no tools lost") +
       (L.worst ? `; most on ${L.worst} (${L.worst_n})` : "") : "you haven't tried it, so there's no record of its critical fails yet") +
@@ -2107,19 +2123,19 @@ else (async function main() {
   // a tap on a phone. Card Skimming has its own plan: skill to 25, then stack skimmers at gas stations to 100. The
   // panel's footer can hide these badges. Sources: the community guides (Emforus, the Torn wiki) and Aaron.
   const ADVICE = {
-    searchforcash: "Each spot pays on its own cycle (trash on Mondays, the fountain on the 1st): search where it's due.",
-    bootlegging: "Copy the genre buyers want most (the badge says which) and keep every genre stocked.",
+    searchforcash: "Each spot fills on its own cycle: the trash is fullest late Sunday into early Monday (collected Monday 06:00 TCT), the fountain at month's end (emptied on the 1st). Each spot's bar shows its chance now.",
+    bootlegging: "Copy in the ratio buyers want (Action most, Sci-Fi least) and keep every genre stocked: a missing genre cuts sales.",
     graffiti: "Cash only comes at reputation 2+ in a district: build one district before chasing money.",
     shoplifting: "Go when cameras and guards are down; a store's notoriety fades 1% every 5 minutes, so rotate stores.",
-    pickpocketing: "Pick marks that are safe at your skill, match their activity and build, and avoid police.",
+    pickpocketing: "Pick marks that are safe at your skill (unsafe ones from about 40, risky ones 65, Cyclists 80), match their activity and build, and avoid police.",
     burglary: "Scout Any (3 nerve), case to about 50% confidence, then burgle; focused scouting is for hunting uniques.",
     hustling: "Start a session with plenty of nerve: a game takes a while to pay. Demo until players bet. Lose to pull more bettors in; win once enough are in (a win makes some leave). " +
       "Your audience is capped by your skill: past it, gathering never draws anyone new.",
-    disposal: "Use the method the community chart stars for each job (the green ring).",
+    disposal: "Use the ringed method: the best $/nerve for each job (a guide's figure until your own record takes over). A \u2605 marks where the job's one-time unique is.",
     cracking: "Your rig's brute-force strength sets the pace; guess the last letters yourself to save nerve.",
-    forgery: "Projects unlock every 25 levels (25, 50, 75). Sell finished documents to the print shop or to other players, whichever pays more; a critical fail can lose a tool.",
+    forgery: "Projects unlock every 25 levels (25, 50, 75). Every step but the last gives the same skill, so level on the projects you critically fail least (Driver's Licenses work all the way). Sell finished documents to the Print Store or to other players, whichever pays more.",
     scamming: "Rotate scam types (repeating one lowers responses) and cash out before suspicion builds.",
-    arson: "Follow the recipe's steps; accidental jobs need a Lighter, suspicious ones the Flamethrower.",
+    arson: "Follow the recipe's steps. Accidental and insurance jobs want low suspicion: a Lighter, never the Flamethrower. Highly suspicious ones want Gasoline or Magnesium (the Flamethrower from skill 80).",
   };
   const skillShown = () => !get("hideSkill", false);
   // Options Torn shows before you can do them: Forgery's picker lists every project, greyed until its level (Torn's own
@@ -2190,6 +2206,8 @@ else (async function main() {
   // community recipe often says to: the card's recipe just says Lighter. One that must look highly suspicious is the
   // other way round: its recipe's Ignite step says Flamethrower (Aaron, 2026-10-18). No warning either way.
   const ACCIDENT = /accident|insurance/i, SUSPICIOUS = /suspicious/i;
+  // (the Flamethrower is Arson's skill-80 unlock: below that a recipe can't ask for it; Emforus, the Torn wiki)
+  const FT_SKILL = 80, ftOK = () => { const s = values && values.crime_skill && values.crime_skill.arson; return s != null && s >= FT_SKILL; };
   const flameBanned = (needs, v) => needs.some(n => ACCIDENT.test(n)) && !!v.community &&
     v.community.steps.some(([k, t]) => /^(Ignite|Stoke)$/.test(k) && /flamethrower/i.test(t));
   // A job's requirements are icons whose labels end in "required"/"requested" (e.g. "Total destruction required"):
@@ -2295,7 +2313,7 @@ else (async function main() {
       // (the card's title in full, "Sports Arena: Boxing Clever", as Best here lists it: its place where the name has one)
       const nsl = nameSlot(host, k), place = nsl !== host && ownText(nsl) && ownText(nsl) !== raw ? ownText(nsl) : "";
       const full = place ? `${place}: ${raw}` : raw;
-      b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null, { name: full, tier, best, noFT, wantFT: needs.some(n => SUSPICIOUS.test(n)), star, need, nv, low }); };
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null, { name: full, tier, best, noFT, wantFT: needs.some(n => SUSPICIOUS.test(n)) && ftOK(), suspicious: needs.some(n => SUSPICIOUS.test(n)), star, need, nv, low }); };
       if (slot !== host) host.querySelector(":scope > .ca-chip")?.remove();  // (one chip a row)
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
@@ -2410,7 +2428,7 @@ else (async function main() {
     const reopen = pop && pop.dataset.kind === v.kind;
     closePop();
     if (reopen) return;
-    const { name, tier, best, noFT, wantFT, star, need, nv, low } = ctx, avg = values && values.overall, o = v.outcomes;
+    const { name, tier, best, noFT, wantFT, suspicious, star, need, nv, low } = ctx, avg = values && values.overall, o = v.outcomes;
     const skNow = ((values && values.crime_skill) || {})[CA.slug(CA.NAMES[v.crime_id] || "")];  // (your skill in this crime)
     pop = $("div", "ca-pop ca-card");
     pop.dataset.kind = v.kind;
@@ -2458,7 +2476,7 @@ else (async function main() {
     }
     // Arson: the recipe is what you act on, so it's on the card (Place / Ignite / Stoke), not behind "More"
     const c = v.community;
-    const steps = c && c.steps ? c.steps.map(([s, t]) => [s, noFT && /^(Ignite|Stoke)$/.test(s) ? t.replace(/flamethrower/ig, "Lighter")
+    const steps = c && c.steps ? c.steps.map(([s, t]) => [s, (noFT || !ftOK()) && /^(Ignite|Stoke)$/.test(s) ? t.replace(/flamethrower/ig, "Lighter")
       : wantFT && s === "Ignite" ? "Flamethrower" : t]) : [];
     if (wantFT && steps.length && !steps.some(([s]) => s === "Ignite")) steps.splice(1, 0, ["Ignite", "Flamethrower"]);
     if (steps.length) {  // the recipe as steps, in the order you do them (Aaron: "make that more visually useful")
@@ -2479,8 +2497,9 @@ else (async function main() {
     const ft = $("div", "ca-ft"), pill = (cls, t, tip) => { const p = $("span", `ca-pill ${cls}`, t); if (tip) p.title = tip; ft.append(p); };
     if (tab && isNew(tabKey(tab), v)) pill("gold", "Just unlocked", "First on this page in the last few days" + (v.guide != null ? ": the guide's estimate stands in until you've tried it" : ""));
     if (fellShort != null) pill("bad", "No payout", "It needs total destruction: 100%");
+    if (suspicious && !ftOK()) pill("", "Suspicious: Gasoline or Magnesium", `A highly suspicious fire wants fuels that raise suspicion. The Flamethrower does it best, from Arson skill ${FT_SKILL}`);
     if (pk) {
-      pill("go", `${VERBS[pk.method]} \u00b7 ${pk.p == null ? "?" : pc(pk.p)} \u00b7 ${Math.round(pk.nerve)} nerve`, "The method with the best expected $/nerve here (reliability: the community chart, updated by your results)");
+      pill("go", `${VERBS[pk.method]} \u00b7 ${pk.p == null ? "?" : pc(pk.p)} \u00b7 ${Math.round(pk.nerve)} nerve`, "The method with the best expected $/nerve here (from the guide's figures, updated by your results)");
       if (v.count && v.per_nerve < pk.ev) pill("bad", `Your way: ${short(v.per_nerve)}/n`, `Your ${v.count} ${v.unit} here, the ways you did them`);
     }
     if (low) pill("warn", `\u26a1 Needs ${need} \u00b7 you have ${nv}`, "Nerve to finish the job, by the recipe (else your own average)");
@@ -2661,7 +2680,7 @@ else (async function main() {
     const avg = src.overall || 0, all = k ? onPage : [], lvl = !!k && levelOn(k);
     const top = !all.length ? 0 : lvl ? Math.max(0, ...all.map(x => x.pn)) : all[0].pn;
     // (Forgery while levelling: the safest projects you've a record on, whatever they pay)
-    const here = (lvl ? all.filter(x => levelled(x.v) && !tooEasy(x.v)) : all.filter(x => !avg || x.pn >= avg)).slice(0, 3), weak = !here.length && all.length && !lvl ? all[0] : null;
+    const here = (lvl ? all.filter(x => levelled(x.v)) : all.filter(x => !avg || x.pn >= avg)).slice(0, 3), weak = !here.length && all.length && !lvl ? all[0] : null;
     // a crime whose options come and go (pickpocketing's marks): its best of all, with what to do ("wait for Cyclist")
     const reach = x => Math.max(x.per_nerve || 0, (x.ideal && x.ideal.per_nerve) || 0);
     const wait = k && lead[k] && lead[k].ideal && lead[k].ideal.per_nerve > top ? lead[k].ideal : null;
