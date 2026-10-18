@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.3
+// @version      2.2.4
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1346,6 +1346,22 @@ else (async function main() {
     }
     return "no option name found as a whole text";
   }
+  // Where the first chip on the page went and whether it can be seen: its box, its parents, and the first parent that
+  // clips it (a phone's Arson rows hid every chip; Aaron, 2026-10-18)
+  function chipWhere() {
+    const b = document.querySelector(".ca-chip");
+    if (!b) return "";
+    const box = el => { const r = el.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`; };
+    const name = el => el.tagName.toLowerCase() + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "");
+    const chain = [];
+    let clip = "";
+    for (let e = b.parentElement, i = 0; e && e !== body && i < 6; e = e.parentElement, i++) {
+      const cs = getComputedStyle(e);
+      chain.push(`${name(e)}[${box(e)}${cs.display === "none" ? " none" : ""}${cs.visibility === "hidden" ? " hidden" : ""}]`);
+      if (!clip && (cs.overflow !== "visible" || cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0)) clip = `${name(e)} (${cs.display}, overflow ${cs.overflow}, opacity ${cs.opacity})`;
+    }
+    return `${box(b)} in ${chain.join(" < ")}${clip ? `; clipped by ${clip}` : ""}`;
+  }
   function aboutBrowser() {
     const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
     d.open = aboutOpen;
@@ -1358,7 +1374,8 @@ else (async function main() {
     copy.type = "button";
     copy.onclick = e => {
       e.stopPropagation();
-      const outline = pageOutline(), text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "");
+      const outline = pageOutline(), chip = chipWhere();
+      const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "") + (chip ? `\nChip: ${chip}` : "");
       const done = () => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy for a bug report"; }, 2000); };
       const pdaCopy = PDA && window.flutter_inappwebview && window.flutter_inappwebview.callHandler;  // (PDA's own: the webview's can fail)
       try { (pdaCopy ? window.flutter_inappwebview.callHandler("copyToClipboard", text) : navigator.clipboard.writeText(text)).then(done, () => { copy.textContent = "Couldn't copy: select the lines above"; }); }
