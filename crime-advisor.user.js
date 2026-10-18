@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.14
+// @version      2.2.15
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -583,7 +583,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.14";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.15";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -700,9 +700,9 @@ else (async function main() {
     finally { clearTimeout(t); }
   }
   async function http(opts) {
-    // (tornbrain.com too, in PDA: the app's own requests don't look like a browser's, and Cloudflare in front of
-    // api.tornbrain.com could take them for a bot)
-    const byFetch = (PDA && /^https:\/\/api\.torn(brain)?\.com\//.test(opts.url)) || typeof GM_xmlhttpRequest !== "function";
+    // (only Torn's API by fetch: torn.com's security policy lets its pages reach api.torn.com but not tornbrain.com,
+    // so in PDA a fetch there always failed; PDA's own bridge isn't bound by it. Aaron's iPhone, 2.2.1-2.2.14)
+    const byFetch = (PDA && /^https:\/\/api\.torn\.com\//.test(opts.url)) || typeof GM_xmlhttpRequest !== "function";
     const host = new URL(opts.url).host;
     try {
       const r = byFetch ? await fetchText(opts) : await new Promise((res, rej) => GM_xmlhttpRequest({ ...opts, timeout: 30000,
