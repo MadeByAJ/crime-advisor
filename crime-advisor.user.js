@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.16
+// @version      2.2.17
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -583,7 +583,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.16";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.17";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -2099,7 +2099,10 @@ else (async function main() {
         (low ? `. Needs ${need} nerve; you have ${nv}` : "");
       b.setAttribute("aria-label", `${raw}: ${TIERWORD[tier]}, ${text}`);
       b.setAttribute("aria-expanded", "false");
-      b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null, { name: raw, tier, best, noFT, star, need, nv, low }); };
+      // (the card's title in full, "Sports Arena: Boxing Clever", as Best here lists it: its place where the name has one)
+      const nsl = nameSlot(host, k), place = nsl !== host && ownText(nsl) && ownText(nsl) !== raw ? ownText(nsl) : "";
+      const full = place ? `${place}: ${raw}` : raw;
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null, { name: full, tier, best, noFT, star, need, nv, low }); };
       if (slot !== host) host.querySelector(":scope > .ca-chip")?.remove();  // (one chip a row)
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
