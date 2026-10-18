@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.3
+// @version      2.3.4
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.3";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.4";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -1626,6 +1626,7 @@ else (async function main() {
       ["Sync", syncError ? `problem: ${syncError}` : syncing ? syncNote || "running" : "idle"],
       ["This page", pageDiag()],
       ["Bottom bar", barSeen],
+      ["Update check", !get("updates", false) ? "off" : `${get("updErr", "") ? `failed: ${get("updErr", "")}` : `latest ${get("updLatest", "?")}`}, ${get("updChecked", 0) ? new Date(get("updChecked", 0)).toISOString().slice(0, 16) : "never"}`],
       ["Community", commState().token ? `on${commState().at ? `, shared ${new Date(commState().at).toLocaleDateString()}` : ""}` : "off"],
       ["Screen", `${innerWidth}\u00d7${innerHeight}, ${matchMedia("(hover: none)").matches ? "touch" : "mouse"}, ${LOW ? "low-end device" : "normal device"}`],
       ["Browser", navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 120)],
@@ -1857,11 +1858,11 @@ else (async function main() {
     try {
       const r = await http({ method: "GET", url: `${COMMUNITY}/v1/version` });
       const j = JSON.parse(r.responseText || "{}");
-      set("updChecked", Date.now()); set("updFor", CA_VERSION);
+      set("updChecked", Date.now()); set("updFor", CA_VERSION); set("updErr", "");
       if (j.version) set("updLatest", j.version);
       // (a beta install updates from the beta copy: the public one would install beside it in Torn PDA)
       if (j.url) set("updUrl", CA_CHANNEL === "beta" ? j.url.replace(/\/crime-advisor\.user\.js$/, "/beta/crime-advisor.user.js") : j.url);
-    } catch (e) { /* tried again tomorrow, or when you turn it on */ }
+    } catch (e) { set("updErr", String((e && e.message) || e).slice(0, 120)); }  // (shown in Settings; tried again in 6 hours)
     glance();
     if (panel) renderPanel();
   }
@@ -1871,7 +1872,19 @@ else (async function main() {
     cb.onchange = async () => { set("updates", cb.checked); if (cb.checked) await updCheck(true); else { glance(); renderPanel(); } };
     lab.append(cb, "Tell me when there's an update");
     lab.title = "A few times a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
-    return lab;
+    if (!get("updates", false)) return lab;
+    // what the last check found, and a way to check now (Aaron, 2026-10-19: in Torn PDA it looked like it did nothing)
+    const box = $("div"), st = $("div", "ca-muted"), at = get("updChecked", 0), latest = get("updLatest", "");
+    const ago = at ? Math.round((Date.now() - at) / 60000) : null;
+    const when = ago == null ? "" : ago < 1 ? ", checked just now" : ago < 120 ? `, checked ${ago} min ago` : `, checked ${Math.round(ago / 60)} h ago`;
+    st.append(get("updErr", "") ? `Couldn't check: ${get("updErr", "")}` : updReady() ? `Update ready: ${latest} (you have ${CA_VERSION})` : latest ? `Up to date (${CA_VERSION})${when}` : at ? "Couldn't reach tornbrain.com" : "Not checked yet");
+    if (updReady()) { const a = $("a", "ca-link", " Install"); a.href = get("updUrl", "https://tornbrain.com/crime-advisor.user.js"); a.target = "_blank"; a.rel = "noopener"; st.append(a); }
+    const now = $("button", "ca-link", "Check now");
+    now.type = "button";
+    now.onclick = async e => { e.stopPropagation(); now.textContent = "Checking\u2026"; await updCheck(true); };
+    st.append(" \u00b7 ", now);
+    box.append(lab, st);
+    return box;
   }
   function updNotice() {
     if (!updReady()) return null;
