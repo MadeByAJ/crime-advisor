@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.11
+// @version      2.2.12
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2038,8 +2038,9 @@ else (async function main() {
       if (!phone) val.append(text);  // (a phone: the grade alone, Aaron 2026-10-17; the number is in the card and the label)
       b.append($("span", "ca-t", TILE[tier]), val);
       const avg = values.overall;
-      b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
-        : `${TIERWORD[tier]}${avg && "SABC".includes(tier) ? ` (your average ${short(avg)}/nerve)` : ""}` +
+      // (no hover text on a phone: PDA showed it on tap, repeating the card's first line)
+      if (!phone) b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
+        : `${TIERWORD[tier][0].toUpperCase()}${TIERWORD[tier].slice(1)}${avg && "SABC".includes(tier) ? `; your average is ${short(avg)}/nerve` : ""}` +
           (recipeOver(v) ? `, by the community recipe: your way lost ${short(-v.per_nerve)}/nerve` : "") +
           (star ? ". Torn shows a unique waiting here now" : "")) +
         (low ? `. Needs ${need} nerve; you have ${nv}` : "");
@@ -2260,6 +2261,12 @@ else (async function main() {
     if (!dig.childNodes.length) more.remove();
     body.appendChild(pop);
     place();
+    // a phone's sheet covers the lower half: the crime's row goes up near the top, so the row, its button and the
+    // card are all in view (Aaron, 2026-10-18)
+    if (pop.classList.contains("ca-sheet")) {
+      const row = anchor.closest(".crime-option, [class*='virtualItem'], li") || anchor;
+      scrollBy({ top: row.getBoundingClientRect().top - 60, behavior: "smooth" });
+    }
     function place() {  // under the chip (above it when there's no room); a sheet on a phone stays put
       if (!pop || pop.classList.contains("ca-sheet")) return;
       const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, hgt = pop.offsetHeight;
@@ -2270,7 +2277,7 @@ else (async function main() {
   }
   document.addEventListener("click", e => { if (pop && !pop.contains(e.target)) closePop(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closePop(); });
-  addEventListener("scroll", closePop, { passive: true });
+  addEventListener("scroll", () => { if (pop && !pop.classList.contains("ca-sheet")) closePop(); }, { passive: true });  // (a phone's sheet stays)
 
   // ---- a crime's result, valued: "WORTH $12k" at the end of the result row (market value; the breakdown on hover).
   // Green at or above your usual per try there (the row's chip), grey below, bright green at 2x or $50k. Prices come
