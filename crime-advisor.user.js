@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.21
+// @version      2.2.22
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -539,7 +539,7 @@ const CA = (() => {
       let best = null, ideal = null;
       if (LIVING[tab]) for (const r of rows)
         if (!r.few && (r.per_nerve || 0) > 0 && (!ideal || r.per_nerve > ideal.per_nerve))
-          ideal = { name: titleCase(r.kind), per_nerve: Math.round(r.per_nerve), verb: LIVING[tab] };
+          ideal = { name: titleCase(r.kind), per_nerve: Math.round(r.per_nerve), verb: LIVING[tab], ...(r.source === "guide" ? { guide: true } : {}) };
       for (const r of rows) {
         if (r.few) continue;
         let pn = r.per_nerve, est = r.source === "community" || r.source === "guide" || !!r.est;
@@ -549,7 +549,7 @@ const CA = (() => {
         const pk = (r.methods || []).find(m => m.method === r.pick && m.ev != null);
         if (evs.length) pn = pk ? pk.ev : Math.max(...evs);  // (Disposal: the method to use, as the page shows it)
         if (pn == null || pn <= 0 || (text && !r.find.some(f => text.includes(f.toLowerCase()))) || ALL_LISTED.has(tab)) continue;
-        if (!best || pn > best.per_nerve) { const n = r.kind.replace(/^the /i, ""); best = { name: n[0].toUpperCase() + n.slice(1), per_nerve: Math.round(pn), est }; }
+        if (!best || pn > best.per_nerve) { const n = r.kind.replace(/^the /i, ""); best = { name: n[0].toUpperCase() + n.slice(1), per_nerve: Math.round(pn), est, ...(r.source === "guide" ? { guide: true } : {}) }; }
       }
       if (ideal && (!best || ideal.per_nerve > best.per_nerve)) best = { ...(best || { name: null, per_nerve: 0, est: false }), ideal };
       if (best) out[tab] = best;
@@ -633,7 +633,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.21";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.22";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1429,6 +1429,26 @@ else (async function main() {
     }
     return `${box(b)} in ${chain.join(" < ")}${clip ? `; clipped by ${clip}` : ""}`;
   }
+  // Arson's fuel and igniter picker as the page draws it (copied only): per column, each item's label, classes, Torn's
+  // check badge and how greyed it is. For reading Torn's own preferred and locked markers (Aaron, 2026-10-18).
+  function arsonPicker() {
+    const head = [...document.querySelectorAll("div, span, p, h4, h5")].find(e => /^igniters$/i.test(ownText(e)) && !e.closest(SKIP));
+    if (!head) return "";
+    let box = head;
+    while (box && box !== body && !/dampeners/i.test(box.textContent || "")) box = box.parentElement;
+    if (!box || box === body) return "";
+    const cls = e => (typeof e.className === "string" ? e.className : (e.className && e.className.baseVal) || "").trim().split(/\s+/).slice(0, 3).join(".");
+    const out = [];
+    for (const e of box.querySelectorAll("button, [role='button'], li, [class*='item'], [class*='Item']")) {
+      if (out.length >= 30 || e.closest(SKIP)) break;
+      const r = e.getBoundingClientRect();
+      if (r.width < 20 || r.height < 20 || r.width > 120) continue;
+      const cs = getComputedStyle(e), img = e.querySelector("img"), lab = e.getAttribute("aria-label") || e.getAttribute("title") || (img && (img.alt || img.title)) || "";
+      const marks = [...e.querySelectorAll("*")].map(cls).filter(c => /check|tick|prefer|recommend|lock|disab|select|active/i.test(c)).slice(0, 3);
+      out.push(`${lab || "?"}[${cls(e)}${marks.length ? " +" + marks.join("+") : ""}${+cs.opacity < 1 ? " op" + cs.opacity : ""}${cs.filter !== "none" ? " " + cs.filter : ""}${e.disabled || e.getAttribute("aria-disabled") === "true" ? " disabled" : ""}]`);
+    }
+    return out.join(" | ").slice(0, 2500);
+  }
   function aboutBrowser() {
     const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
     d.open = aboutOpen;
@@ -1441,8 +1461,9 @@ else (async function main() {
     copy.type = "button";
     copy.onclick = e => {
       e.stopPropagation();
-      const outline = pageOutline(), chip = chipWhere();
-      const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "") + (chip ? `\nChip: ${chip}` : "");
+      const outline = pageOutline(), chip = chipWhere(), picker = arsonPicker();
+      const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "") + (chip ? `\nChip: ${chip}` : "") +
+        (picker ? `\nArson picker: ${picker}` : "");
       const done = () => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy for a bug report"; }, 2000); };
       const pdaCopy = PDA && window.flutter_inappwebview && window.flutter_inappwebview.callHandler;  // (PDA's own: the webview's can fail)
       try { (pdaCopy ? window.flutter_inappwebview.callHandler("copyToClipboard", text) : navigator.clipboard.writeText(text)).then(done, () => { copy.textContent = "Couldn't copy: select the lines above"; }); }
@@ -2072,9 +2093,9 @@ else (async function main() {
   }
 
   // A job that must look accidental (an insurance job) fails if it's lit or stoked with the Flamethrower, though the
-  // community recipe often says to. When the job's requirements say so and the recipe uses one, the chip warns and
-  // the card swaps in a Lighter. (Any requirement mentioning "accident" or "insurance" counts.)
-  const ACCIDENT = /accident|insurance/i;
+  // community recipe often says to: the card's recipe just says Lighter. One that must look highly suspicious is the
+  // other way round: its recipe's Ignite step says Flamethrower (Aaron, 2026-10-18). No warning either way.
+  const ACCIDENT = /accident|insurance/i, SUSPICIOUS = /suspicious/i;
   const flameBanned = (needs, v) => needs.some(n => ACCIDENT.test(n)) && !!v.community &&
     v.community.steps.some(([k, t]) => /^(Ignite|Stoke)$/.test(k) && /flamethrower/i.test(t));
   // A job's requirements are icons whose labels end in "required"/"requested" (e.g. "Total destruction required"):
@@ -2162,7 +2183,7 @@ else (async function main() {
       // (the card's title in full, "Sports Arena: Boxing Clever", as Best here lists it: its place where the name has one)
       const nsl = nameSlot(host, k), place = nsl !== host && ownText(nsl) && ownText(nsl) !== raw ? ownText(nsl) : "";
       const full = place ? `${place}: ${raw}` : raw;
-      b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null, { name: full, tier, best, noFT, star, need, nv, low }); };
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); openPop(b, v, needs, short100 ? pct : null, { name: full, tier, best, noFT, wantFT: needs.some(n => SUSPICIOUS.test(n)), star, need, nv, low }); };
       if (slot !== host) host.querySelector(":scope > .ca-chip")?.remove();  // (one chip a row)
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
@@ -2271,7 +2292,7 @@ else (async function main() {
     const reopen = pop && pop.dataset.kind === v.kind;
     closePop();
     if (reopen) return;
-    const { name, tier, best, noFT, star, need, nv, low } = ctx, avg = values && values.overall, o = v.outcomes;
+    const { name, tier, best, noFT, wantFT, star, need, nv, low } = ctx, avg = values && values.overall, o = v.outcomes;
     const skNow = ((values && values.crime_skill) || {})[CA.slug(CA.NAMES[v.crime_id] || "")];  // (your skill in this crime)
     pop = $("div", "ca-pop ca-card");
     pop.dataset.kind = v.kind;
@@ -2315,7 +2336,9 @@ else (async function main() {
     }
     // Arson: the recipe is what you act on, so it's on the card (Place / Ignite / Stoke), not behind "More"
     const c = v.community;
-    const steps = c && c.steps ? c.steps.map(([s, t]) => [s, noFT && /^(Ignite|Stoke)$/.test(s) ? t.replace(/flamethrower/ig, "Lighter") : t]) : [];
+    const steps = c && c.steps ? c.steps.map(([s, t]) => [s, noFT && /^(Ignite|Stoke)$/.test(s) ? t.replace(/flamethrower/ig, "Lighter")
+      : wantFT && s === "Ignite" ? "Flamethrower" : t]) : [];
+    if (wantFT && steps.length && !steps.some(([s]) => s === "Ignite")) steps.splice(1, 0, ["Ignite", "Flamethrower"]);
     if (steps.length) {  // the recipe as steps, in the order you do them (Aaron: "make that more visually useful")
       const box = $("div", "ca-recipe"), hd = $("div", "ca-rhd", "Recipe ");
       hd.append($("span", "", "\u00b7 the community's"));
@@ -2494,9 +2517,22 @@ else (async function main() {
       setTimeout(() => e.classList.remove("ca-flash"), 3400);
     }
   }
-  // What to do, for the panel's Best crimes and the button's glance
+  // What to do, for the panel's Best crimes and the button's glance. An option you've never tried is only suggested
+  // once it has shown on your own page: the guide covers every option, and a newer player hasn't unlocked them all
+  // (Aaron, 2026-10-18: "handle for 'this player only has X options unlocked'").
+  const unlockedFor = (t, name) => { const rec = get("optsSeen", {})[t]; return !!rec && CA.gkey(name) in rec; };
+  function reachable(lead) {
+    const out = {};
+    for (const [t, x] of Object.entries(lead)) {
+      const ideal = x.ideal && (!x.ideal.guide || unlockedFor(t, x.ideal.name)) ? x.ideal : null;
+      const bestOk = x.name && (!x.guide || unlockedFor(t, x.name));
+      if (bestOk) out[t] = ideal ? { ...x, ideal } : (({ ideal: _, ...rest }) => rest)(x);
+      else if (ideal) out[t] = { name: null, per_nerve: 0, est: false, ideal };
+    }
+    return out;
+  }
   function plan(k) {
-    const src = values || {}, lead = src.leaders || {}, crimes = src.crimes || {};
+    const src = values || {}, lead = reachable(src.leaders || {}), crimes = src.crimes || {};
     // Worth doing here: options at or above your average. None: just the best on show, as one muted row, so the
     // crimes worth doing elsewhere get the room (Aaron, 2026-10-17: on Pickpocketing only waiting for a Cyclist was
     // worth it, and the weak marks on show crowded out the better crimes elsewhere)
