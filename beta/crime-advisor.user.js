@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.7
+// @version      2.2.8
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -986,6 +986,7 @@ else (async function main() {
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
       .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
+      .ca-badge.ca-hud.ca-chip.onimg{position:absolute;right:3px;bottom:3px;margin:0;z-index:3;min-height:22px;box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.45)}
       .ca-badge.ca-hud.ca-chip.lead{margin:0 6px 0 0;vertical-align:middle}.ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
     .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
@@ -1787,13 +1788,39 @@ else (async function main() {
   // visible copy of the same text in the same row.
   const ownText = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join("").trim();
   function slotFor(host, k) {
-    const slot = chipSlot(host, k);
-    if (slot.getClientRects().length) return slot;
-    const want = ownText(slot), row = slot.closest(".crime-option, [class*='virtualItem']");
-    if (!want || !row) return slot;
-    for (const e of row.querySelectorAll("*"))
-      if (e !== slot && !e.closest(SKIP) && ownText(e) === want && e.getClientRects().length) return e;
+    let slot = chipSlot(host, k);
+    if (!slot.getClientRects().length) {
+      const want = ownText(slot), row = slot.closest(".crime-option, [class*='virtualItem']");
+      if (want && row) for (const e of row.querySelectorAll("*"))
+        if (e !== slot && !e.closest(SKIP) && ownText(e) === want && e.getClientRects().length) { slot = e; break; }
+    }
+    // a phone: the grade sits on the row's picture (Aaron, 2026-10-18: "a badge on the location image itself"), clear
+    // of the name; pickers and rows without a picture keep it by the name
+    if (matchMedia("(max-width:600px)").matches && !host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']")) {
+      const t = thumbOf(slot);
+      if (t) return t;
+    }
     return slot;
+  }
+  // The row's picture: the leftmost image (or picture box) in the row, left of the name and picture-sized
+  function thumbOf(slot) {
+    const row = slot.closest(".crime-option, [class*='virtualItem'], li");
+    if (!row) return null;
+    const nr = slot.getBoundingClientRect();
+    let best = null;
+    for (const e of row.querySelectorAll("img, [class*='image'], [class*='Image'], [class*='avatar'], [class*='Avatar']")) {
+      if (e.closest(SKIP)) continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 34 || r.height < 30 || r.width > 170 || r.height > 150 || r.right > nr.left + 4) continue;
+      if (!best || r.left < best.r.left) best = { e, r };
+    }
+    if (!best) return null;
+    const t = best.e.tagName === "IMG" ? best.e.parentElement : best.e;
+    if (!t.dataset.caThumb) {
+      t.dataset.caThumb = "1";
+      if (getComputedStyle(t).position === "static") t.style.position = "relative";
+    }
+    return t;
   }
   // Burglary's "Any Industrial" (a random target of that kind, 3 nerve to scout; a type of your choice is 9): the
   // types listed with it in Torn's menu, blended by how often you've burgled each.
@@ -2022,7 +2049,8 @@ else (async function main() {
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
       // (a phone's name box that cuts off what doesn't fit, Arson's place line: the chip goes first, so the name is what
       // gets shortened, not the chip: "Travel Agent ..." hid it; Aaron's iPhone)
-      if (phone && !picker && getComputedStyle(slot).overflow !== "visible") { slot.insertBefore(b, slot.firstChild); b.classList.add("lead"); }
+      if (slot.dataset.caThumb) b.classList.add("onimg");  // (on the row's picture: a phone)
+      else if (phone && !picker && getComputedStyle(slot).overflow !== "visible") { slot.insertBefore(b, slot.firstChild); b.classList.add("lead"); }
       if (picker) pickRight(b, host);
       if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
