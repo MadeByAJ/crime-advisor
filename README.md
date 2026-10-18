@@ -111,6 +111,6 @@ It updates itself: Tampermonkey checks tornbrain.com for a new version about onc
 
 ---
 
-Made by AJTheSecond. Arson recipes come from the community's Arsonist's Ledger at balaclava.app; your grades and $/nerve come from your own logs.
+Made by AJTheSecond. Arson recipes come from the community's Arsonist's Ledger at balaclava.app. Starting estimates for options you've hardly tried come from Emforus's Crime Profitability Index (marked ~). Your grades and $/nerve come from your own logs.
 
 Free, and staying free. If it's helped you, you can [buy me a coffee](https://buymeacoffee.com/ajthesecond). Entirely optional.

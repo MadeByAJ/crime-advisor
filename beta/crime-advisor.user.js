@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.19
+// @version      2.2.20
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -542,7 +542,7 @@ const CA = (() => {
           ideal = { name: titleCase(r.kind), per_nerve: Math.round(r.per_nerve), verb: LIVING[tab] };
       for (const r of rows) {
         if (r.few) continue;
-        let pn = r.per_nerve, est = r.source === "community";
+        let pn = r.per_nerve, est = r.source === "community" || r.source === "guide" || !!r.est;
         const c = r.community || {};
         if (pn != null && pn < 0 && (c.per_nerve || 0) > 0) { pn = c.per_nerve; est = true; }
         const evs = (r.methods || []).filter(m => m.available && m.ev != null).map(m => m.ev);
@@ -556,6 +556,49 @@ const CA = (() => {
     }
     return out;
   }
+  // Known advice before your own: $/nerve per option from the Emforus Crime Profitability Index (a public community
+  // sheet, max crime skill, fetched 2026-10-18), as crimes.py. Blended in as GUIDE_W tries where it tracks real play
+  // (Shoplifting, Pickpocketing, Forgery); elsewhere (Burglary, Search for Cash) only for options never tried.
+  const GUIDE_W = 8, GUIDE_BLEND = new Set([4, 5, FORGERY]);
+  const GUIDE = {
+    4: { "Pharmacy": 7562, "Sally's Sweet Shop": 2244, "Big Al's Gun Shop": 1692, "Cyber Force": 931, "Bits 'n' Bobs": 642,
+         "Jewelry Store": 414, "TC Clothing": 391, "Super Store": 247 },
+    5: { "Mobster": 11757, "Cyclist": 11670, "Rich kid": 3143, "Drunk woman": 2722, "Classy lady": 2603, "Businessman": 2597,
+         "Postal worker": 2471, "Thug": 2397, "Gang member": 2178, "Businesswoman": 1894, "Sex worker": 1744, "Young man": 1601,
+         "Police officer": 1565, "Laborer": 1505, "Junkie": 1358, "Drunk man": 1216, "Jogger": 1211, "Elderly man": 1035,
+         "Student": 1028, "Homeless person": 791, "Young woman": 779, "Elderly woman": 756 },
+    11: { "Passport": 5973, "Bank Check": 5396, "ATM Key": 4951, "Police Badge": 4944, "ID Badge": 4762, "Travel Visa": 3981,
+          "License Plate": 3034, "Skeleton Key": 2980, "Prescription": 2860, "Birth Certificate": 2478, "Parking Permit": 325,
+          "Driver's License": 243, "Concert Ticket": 162, "Diploma": -1111 },
+    1: { "Cemetery": 2059, "Trash": 1760, "Beach": 1284, "Subway": 1217, "Junkyard": 958, "Fountain": 781 },
+    7: { "Dentists Office": 5080, "Slaughterhouse": 4619, "Chiropractors": 4298, "Manor House": 4242,
+         "Self-Storage Facility": 4083, "Old Factory": 3999, "Liquor Store": 3626, "Truckyard": 3512, "Paper Mill": 3312,
+         "Foundry": 3197, "Luxury Villa": 3004, "Fertilizer Plant": 3003, "Cleaning Agency": 2905, "Lake House": 2842,
+         "Apartment": 2688, "Brewery": 2648, "Suburban Home": 2610, "Dockside Warehouse": 2525, "Bungalow": 2508,
+         "Recruitment Agency": 2502, "Barbershop": 2329, "Beach Hut": 2285, "Advertising Agency": 2257, "Shipyard": 2248,
+         "Secluded Cabin": 2161, "Market": 2145, "Postal Office": 2066, "Mobile Home": 1762, "Farm Storage Unit": 1734,
+         "Funeral Parlor": 1704, "Farmhouse": 1702, "Printing Works": 1549, "Tool Shed": 1483, "Cottage": 1474 },
+  };
+  const gkey = s => String(s).toLowerCase().replace(/^(the|a|an) /, "").replace(/[^a-z0-9]/g, "");
+  function applyGuide(tabs, overall) {
+    for (const [cid, table] of Object.entries(GUIDE)) {
+      const c = +cid, rows = (tabs[slug(NAMES[c])] ||= []);
+      const have = new Map(rows.map(r => [gkey(r.kind), r]));
+      for (const [name, g] of Object.entries(table)) {
+        const r = have.get(gkey(name));
+        if (!r) rows.push({ crime_id: c, kind: name, find: c === 1 ? [`Search the ${name}`, `Search ${name}`] : [name], per_nerve: g,
+                            few: false, count: 0, unit: "tries", source: "guide", guide: g, worth: !!overall && g >= overall });
+        else if (GUIDE_BLEND.has(c)) {
+          const n = r.count || 0, own = Math.round(r.per_nerve);  // (as crimes.py: its rows are rounded first)
+          r.guide = g; r.own_per_nerve = own;
+          r.per_nerve = Math.round((n * own + GUIDE_W * g) / (n + GUIDE_W));
+          if (r.few) { r.few = false; r.est = true; }
+          r.worth = !!overall && r.per_nerve >= overall && (r.vs_crime || 1) >= 1;
+        }
+      }
+    }
+  }
+
   function pageValues(rep, ref = {}, priceByName = {}, seen = {}) {
     const overall = rep.total.per_nerve || 0, tabs = {};
     for (const k of rep.kinds) {
@@ -565,6 +608,7 @@ const CA = (() => {
       (tabs[slug(NAMES[k.crime_id])] ||= []).push({ ...k, find: [...new Set(find.filter(f => f.length >= 3))],
         worth: !k.few && (k.vs_crime || 0) >= 1 && k.per_nerve >= overall });
     }
+    applyGuide(tabs, overall);
     // arson jobs you've never done: the community recipe is all there is to go on
     const done = new Set((tabs.arson || []).map(v => jobTitle(v.kind)));
     const arsonBase = (rep.crimes.find(c => c.id === ARSON) || {}).per_nerve;
@@ -589,7 +633,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.19";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.20";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1830,7 +1874,7 @@ else (async function main() {
   }
   const chipText = (v, tier, short100, pct) => short100 ? `${pct}% short` : tier === "G" ? `collect ${short(v.avg_net)}`
     : v.few ? (v.per_nerve != null && v.source === "community" ? `~${short(v.per_nerve)}/n` : "new")
-    : recipeOver(v) ? `~${short(pnOf(v))}/n` : `${short(pnOf(v))}/n`;
+    : recipeOver(v) || v.est || v.source === "guide" ? `~${short(pnOf(v))}/n` : `${short(pnOf(v))}/n`;  // (~: partly or all the guide's)
   // Where the chip goes: after the name, except on Arson, where the job's name is long and the chip wrapped to a third
   // line: there it goes on the place's line above ("Theater"), which is always short. Forgery: after the step label.
   const chipSlot = (host, k) => {  // (its own text only, and Torn's buttons only: once the chip is in, it's still the slot)
@@ -2144,7 +2188,7 @@ else (async function main() {
       const ns = nameSlot(host, k), chip = slotFor(host, k).querySelector(":scope > .ca-chip");
       const place = ns !== host && ownText(ns) ? ownText(ns) : "";
       // (glance names: "Cemetery", not "Search the Cemetery")
-      return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community",
+      return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est,
                tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
     }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.shown  // (on show: Disposal's
       && !seenV.has(x.v) && seenV.add(x.v)).sort((a, b) => b.pn - a.pn);                     // hidden history named jobs not on offer)
@@ -2314,7 +2358,10 @@ else (async function main() {
       ["Best on show", best > -Infinity ? `${short(best)}/nerve` : null],
       ["Vs your usual here", v.vs_crime != null ? `${v.vs_crime.toFixed(1)}\u00d7` : null],
       ["Community recipe", c && c.per_nerve != null ? `~${short(c.per_nerve)}/nerve` : null],
-      ["From", v.source === "community" ? "community estimate" : "your logs"]]));
+      ["Guide", v.guide != null ? `~${short(v.guide)}/nerve` : null],
+      ["Your own", v.own_per_nerve != null ? `${short(v.own_per_nerve)}/nerve over ${v.count} ${v.unit}` : null],
+      ["From", v.source === "community" ? "community estimate" : v.source === "guide" ? "the guide: you haven't tried it (Emforus, max skill)"
+        : v.guide != null ? `your logs, with the guide counted as 8 tries` : "your logs"]]));
     const uq = ((o && o.uniques) || []).slice().sort((a, b) => b.value - a.value), nuq = Math.max(uq.length, v.uniques || 0);
     if (nuq) sec("Uniques", `${nuq} found`, [
       ...kv(uq.slice(0, 4).map(u => [u.items.join(" + ") || "cash", short(u.value)])),
