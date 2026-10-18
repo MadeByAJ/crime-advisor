@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.13
+// @version      2.2.14
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -583,6 +583,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
+  const CA_VERSION = "2.2.14";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -990,6 +991,10 @@ else (async function main() {
       .ca-badge.ca-hud.ca-chip.lead{margin:0 6px 0 0;vertical-align:middle}.ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
     .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
+    .ca-upd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:7px 10px;border-radius:8px;background:#1d2733;color:#cfe3ff;font-size:12px}
+    .ca-panel .ca-upd a.ca-updgo{margin-left:auto;background:#2a78d6;color:#fff!important;text-decoration:none;border-radius:6px;padding:4px 10px;font-weight:600}
+    .ca-panel .ca-upd a.ca-updnote{color:#9cc8ff!important}
+    .ca-btn.ca-hasupd::after{content:"";position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#2a78d6;box-shadow:0 0 0 2px #1a1a19}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
     .ca-prog{height:3px;border-radius:2px;background:#232321;overflow:hidden}.ca-prog span{display:block;height:100%;background:#2a78d6;transition:width .4s}
@@ -1116,6 +1121,8 @@ else (async function main() {
     }
     h.append(x);
     panel.append(h);
+    const upd = updNotice();
+    if (upd) panel.append(upd);
     if (pop && pop.classList.contains("ca-inpanel")) panel.append(pop);  // (a crime's card, on a phone)
     if (priceDenied) {  // (a log-only key from 1.x: everything it found counts as $0 until it can read prices)
       panel.append($("div", "ca-err ca-alert", "This key can't read item prices, so items count as $0. Make a new key below."));
@@ -1297,7 +1304,7 @@ else (async function main() {
     cb.onchange = () => set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
     if (!matchMedia("(max-width:600px)").matches) f.append(auto);  // (no "Open automatically" on a phone)
-    f.append(commUi(), aboutBrowser());
+    f.append(commUi(), updUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
   }
@@ -1308,7 +1315,7 @@ else (async function main() {
   function diagnostics() {
     const gi = typeof GM_info !== "undefined" ? GM_info : null, st = get("sync", {}), ago = t => `${Math.round((Date.now() - t) / 1000)} s ago`;
     return [
-      ["Crime Advisor", (gi && gi.script && gi.script.version) || "?"],
+      ["Crime Advisor", CA_VERSION],
       ["Runs in", PDA ? "Torn PDA" : gi && gi.scriptHandler ? `${gi.scriptHandler} ${gi.version || ""}`.trim() : "unknown"],
       ["Settings kept in", PDA ? "IndexedDB (Torn PDA)" : noGM ? "torn.com storage" : "the userscript manager"],
       ["Key", !get("key", "") ? "none" : pdaKey && get("key", "") === pdaKey ? "Torn PDA's" : "saved here"],
@@ -1508,6 +1515,47 @@ else (async function main() {
     return w;
   }
 
+  // ---------------- update notices (opt-in): "Update ready" when tornbrain.com has a newer version ----------------
+  // Off unless you turn it on. Then once a day it asks api.tornbrain.com for the latest version number; nothing about
+  // you is sent, and the server keeps only how many checks came in that day. (Tampermonkey also updates by itself;
+  // this says so in the panel, and covers Torn PDA, whose updates wait for you to look.)
+  const newer = (a, b) => {
+    const pa = String(a || "").split(/[.-]/).map(n => parseInt(n, 10) || 0), pb = String(b || "").split(/[.-]/).map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+    return false;
+  };
+  const updReady = () => !!get("updates", false) && newer(get("updLatest", ""), CA_VERSION);
+  async function updCheck(force) {
+    if (!get("updates", false)) return;
+    if (!force && Date.now() - get("updChecked", 0) < 86400000) return;
+    try {
+      const r = await http({ method: "GET", url: `${COMMUNITY}/v1/version` });
+      const j = JSON.parse(r.responseText || "{}");
+      set("updChecked", Date.now());
+      if (j.version) set("updLatest", j.version);
+      if (j.url) set("updUrl", j.url);
+    } catch (e) { /* tried again tomorrow, or when you turn it on */ }
+    glance();
+    if (panel) renderPanel();
+  }
+  function updUi() {
+    const lab = $("label", "ca-auto"), cb = $("input");
+    cb.type = "checkbox"; cb.checked = !!get("updates", false);
+    cb.onchange = async () => { set("updates", cb.checked); if (cb.checked) await updCheck(true); else { glance(); renderPanel(); } };
+    lab.append(cb, "Tell me when there's an update");
+    lab.title = "Once a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
+    return lab;
+  }
+  function updNotice() {
+    if (!updReady()) return null;
+    const d = $("div", "ca-upd"), a = $("a", "ca-updgo", "Install");
+    a.href = get("updUrl", "https://tornbrain.com/crime-advisor.user.js"); a.target = "_blank"; a.rel = "noopener";
+    const n = $("a", "ca-updnote", "what's new");
+    n.href = "https://tornbrain.com/#new"; n.target = "_blank"; n.rel = "noopener";
+    d.append($("span", "", `Update ready: ${get("updLatest", "")}`), n, a);
+    return d;
+  }
+
   // the key: make one on Torn (the link pre-fills a Custom key: logs + item prices), paste it, save
   function keyForm(key) {
     const w = $("div", "ca-keyform");
@@ -1548,6 +1596,7 @@ else (async function main() {
   // page tracking before it existed, threw, and stuck as a bare title under Torn's chat bar; Aaron's iPhone, 2.2.2)
   // (not on a phone: there the panel is a sheet over the page, so it opens only when you ask; Aaron, 2026-10-18)
   const phoneNow = () => matchMedia("(max-width:600px)").matches;
+  setTimeout(() => updCheck(false), 4000);  // (once a day, when you've turned update notices on)
   if (onCrimes && !phoneNow() && get("key", "") && get("autoOpen", false)) setTimeout(() => { if (!panel) btn.onclick(); }, 0);
 
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------
@@ -2434,6 +2483,7 @@ else (async function main() {
   // thing to do: the best here at your average or above, else what to wait for here, else the best crime elsewhere,
   // else (muted) the best on show. On the hub: the best crime.
   function glance() {
+    btn.classList.toggle("ca-hasupd", updReady());  // (a dot: an update is ready)
     const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere } = plan(k);
     let tier = null, line = "", tip = "", muted = false;
     if (here.length) {

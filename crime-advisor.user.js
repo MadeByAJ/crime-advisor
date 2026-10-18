@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.3
+// @version      2.2.14
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -583,6 +583,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
+  const CA_VERSION = "2.2.14";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -986,9 +987,14 @@ else (async function main() {
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
       .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
-      .ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
+      .ca-badge.ca-hud.ca-chip.onimg{position:absolute;right:3px;bottom:3px;margin:0;z-index:3;pointer-events:auto!important;cursor:pointer;min-height:22px;box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.45)}
+      .ca-badge.ca-hud.ca-chip.lead{margin:0 6px 0 0;vertical-align:middle}.ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
     .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
+    .ca-upd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:7px 10px;border-radius:8px;background:#1d2733;color:#cfe3ff;font-size:12px}
+    .ca-panel .ca-upd a.ca-updgo{margin-left:auto;background:#2a78d6;color:#fff!important;text-decoration:none;border-radius:6px;padding:4px 10px;font-weight:600}
+    .ca-panel .ca-upd a.ca-updnote{color:#9cc8ff!important}
+    .ca-btn.ca-hasupd::after{content:"";position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#2a78d6;box-shadow:0 0 0 2px #1a1a19}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
     .ca-prog{height:3px;border-radius:2px;background:#232321;overflow:hidden}.ca-prog span{display:block;height:100%;background:#2a78d6;transition:width .4s}
@@ -1058,7 +1064,8 @@ else (async function main() {
     .ca-dig .ca-body{padding:0 0 10px;font-size:12px;color:#c3c2b7;display:grid;gap:4px}
     .ca-kv{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}.ca-kv span:last-child{text-align:right}
     .ca-card > .ca-body{display:grid;gap:4px;font-size:12px;color:#c3c2b7}.ca-kvl{display:grid;grid-template-columns:auto 1fr;gap:10px}.ca-kvl span:first-child{color:#8f8e86}
-    .ca-pop.ca-sheet{left:0!important;right:0;bottom:0;top:auto!important;width:auto;max-height:75vh;border-radius:14px 14px 0 0;
+    .ca-panel .ca-pop.ca-inpanel{position:static;width:auto;max-height:none;overflow:visible;box-shadow:none;border:0;border-radius:0;background:none;padding:2px 0 12px;margin:0 0 10px;border-bottom:1px solid #2c2c2a}
+    .ca-pop.ca-sheet{left:0!important;right:0;bottom:var(--ca-bottom,0px);top:auto!important;width:auto;max-height:calc(75vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;
       padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
     .ca-meth{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:4px}
     .ca-meth th{color:#8f8e86!important;font:500 11px system-ui,sans-serif!important;text-align:right;padding:2px 4px;background:none!important}.ca-meth th:first-child{text-align:left}
@@ -1084,7 +1091,7 @@ else (async function main() {
   btn.append($("span", "ca-bt", "Crime Advisor"));
   btn.type = "button";
   if (onCrimes) body.appendChild(btn);
-  btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
+  btn.onclick = () => { if (panel) { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
   setInterval(async () => {  // while the panel is open: another tab's progress shows up here too
     if (!panel) return;
     const typing = panel.querySelector("input");
@@ -1104,7 +1111,7 @@ else (async function main() {
     const key = get("key", ""), avg = (values && values.overall) || 0;
     const h = $("div", "ca-ph"), x = $("button", "ca-x", "\u2715");
     x.type = "button"; x.setAttribute("aria-label", "Close");
-    x.onclick = () => { panel.remove(); panel = null; };
+    x.onclick = () => { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); };
     h.append($("b", "", "Crime Advisor"));
     if (key && avg) {
       const a = $("span", "ca-avg");
@@ -1114,6 +1121,9 @@ else (async function main() {
     }
     h.append(x);
     panel.append(h);
+    const upd = updNotice();
+    if (upd) panel.append(upd);
+    if (pop && pop.classList.contains("ca-inpanel")) panel.append(pop);  // (a crime's card, on a phone)
     if (priceDenied) {  // (a log-only key from 1.x: everything it found counts as $0 until it can read prices)
       panel.append($("div", "ca-err ca-alert", "This key can't read item prices, so items count as $0. Make a new key below."));
       keyOpen = true;
@@ -1294,7 +1304,7 @@ else (async function main() {
     cb.onchange = () => set("autoOpen", cb.checked);
     auto.append(cb, "Open automatically on crime pages");
     if (!matchMedia("(max-width:600px)").matches) f.append(auto);  // (no "Open automatically" on a phone)
-    f.append(commUi(), aboutBrowser());
+    f.append(commUi(), updUi(), aboutBrowser());
     if (keyOpen) f.append(keyForm(key));
     return f;
   }
@@ -1305,7 +1315,7 @@ else (async function main() {
   function diagnostics() {
     const gi = typeof GM_info !== "undefined" ? GM_info : null, st = get("sync", {}), ago = t => `${Math.round((Date.now() - t) / 1000)} s ago`;
     return [
-      ["Crime Advisor", (gi && gi.script && gi.script.version) || "?"],
+      ["Crime Advisor", CA_VERSION],
       ["Runs in", PDA ? "Torn PDA" : gi && gi.scriptHandler ? `${gi.scriptHandler} ${gi.version || ""}`.trim() : "unknown"],
       ["Settings kept in", PDA ? "IndexedDB (Torn PDA)" : noGM ? "torn.com storage" : "the userscript manager"],
       ["Key", !get("key", "") ? "none" : pdaKey && get("key", "") === pdaKey ? "Torn PDA's" : "saved here"],
@@ -1346,6 +1356,22 @@ else (async function main() {
     }
     return "no option name found as a whole text";
   }
+  // Where the first chip on the page went and whether it can be seen: its box, its parents, and the first parent that
+  // clips it (a phone's Arson rows hid every chip; Aaron, 2026-10-18)
+  function chipWhere() {
+    const b = document.querySelector(".ca-chip");
+    if (!b) return "";
+    const box = el => { const r = el.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`; };
+    const name = el => el.tagName.toLowerCase() + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "");
+    const chain = [];
+    let clip = "";
+    for (let e = b.parentElement, i = 0; e && e !== body && i < 6; e = e.parentElement, i++) {
+      const cs = getComputedStyle(e);
+      chain.push(`${name(e)}[${box(e)}${cs.display === "none" ? " none" : ""}${cs.visibility === "hidden" ? " hidden" : ""}]`);
+      if (!clip && (cs.overflow !== "visible" || cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0)) clip = `${name(e)} (${cs.display}, overflow ${cs.overflow}, opacity ${cs.opacity})`;
+    }
+    return `${box(b)} in ${chain.join(" < ")}${clip ? `; clipped by ${clip}` : ""}`;
+  }
   function aboutBrowser() {
     const d = $("details", "ca-about"), s = $("summary", "", "About this browser");
     d.open = aboutOpen;
@@ -1358,7 +1384,8 @@ else (async function main() {
     copy.type = "button";
     copy.onclick = e => {
       e.stopPropagation();
-      const outline = pageOutline(), text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "");
+      const outline = pageOutline(), chip = chipWhere();
+      const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (outline ? `\nOutline: ${outline}` : "") + (chip ? `\nChip: ${chip}` : "");
       const done = () => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy for a bug report"; }, 2000); };
       const pdaCopy = PDA && window.flutter_inappwebview && window.flutter_inappwebview.callHandler;  // (PDA's own: the webview's can fail)
       try { (pdaCopy ? window.flutter_inappwebview.callHandler("copyToClipboard", text) : navigator.clipboard.writeText(text)).then(done, () => { copy.textContent = "Couldn't copy: select the lines above"; }); }
@@ -1488,6 +1515,47 @@ else (async function main() {
     return w;
   }
 
+  // ---------------- update notices (opt-in): "Update ready" when tornbrain.com has a newer version ----------------
+  // Off unless you turn it on. Then once a day it asks api.tornbrain.com for the latest version number; nothing about
+  // you is sent, and the server keeps only how many checks came in that day. (Tampermonkey also updates by itself;
+  // this says so in the panel, and covers Torn PDA, whose updates wait for you to look.)
+  const newer = (a, b) => {
+    const pa = String(a || "").split(/[.-]/).map(n => parseInt(n, 10) || 0), pb = String(b || "").split(/[.-]/).map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+    return false;
+  };
+  const updReady = () => !!get("updates", false) && newer(get("updLatest", ""), CA_VERSION);
+  async function updCheck(force) {
+    if (!get("updates", false)) return;
+    if (!force && Date.now() - get("updChecked", 0) < 86400000) return;
+    try {
+      const r = await http({ method: "GET", url: `${COMMUNITY}/v1/version` });
+      const j = JSON.parse(r.responseText || "{}");
+      set("updChecked", Date.now());
+      if (j.version) set("updLatest", j.version);
+      if (j.url) set("updUrl", j.url);
+    } catch (e) { /* tried again tomorrow, or when you turn it on */ }
+    glance();
+    if (panel) renderPanel();
+  }
+  function updUi() {
+    const lab = $("label", "ca-auto"), cb = $("input");
+    cb.type = "checkbox"; cb.checked = !!get("updates", false);
+    cb.onchange = async () => { set("updates", cb.checked); if (cb.checked) await updCheck(true); else { glance(); renderPanel(); } };
+    lab.append(cb, "Tell me when there's an update");
+    lab.title = "Once a day it asks tornbrain.com for the latest version number. Nothing about you is sent.";
+    return lab;
+  }
+  function updNotice() {
+    if (!updReady()) return null;
+    const d = $("div", "ca-upd"), a = $("a", "ca-updgo", "Install");
+    a.href = get("updUrl", "https://tornbrain.com/crime-advisor.user.js"); a.target = "_blank"; a.rel = "noopener";
+    const n = $("a", "ca-updnote", "what's new");
+    n.href = "https://tornbrain.com/#new"; n.target = "_blank"; n.rel = "noopener";
+    d.append($("span", "", `Update ready: ${get("updLatest", "")}`), n, a);
+    return d;
+  }
+
   // the key: make one on Torn (the link pre-fills a Custom key: logs + item prices), paste it, save
   function keyForm(key) {
     const w = $("div", "ca-keyform");
@@ -1528,6 +1596,7 @@ else (async function main() {
   // page tracking before it existed, threw, and stuck as a bare title under Torn's chat bar; Aaron's iPhone, 2.2.2)
   // (not on a phone: there the panel is a sheet over the page, so it opens only when you ask; Aaron, 2026-10-18)
   const phoneNow = () => matchMedia("(max-width:600px)").matches;
+  setTimeout(() => updCheck(false), 4000);  // (once a day, when you've turned update notices on)
   if (onCrimes && !phoneNow() && get("key", "") && get("autoOpen", false)) setTimeout(() => { if (!panel) btn.onclick(); }, 0);
 
   // ---------------- the crime pages: a grade chip per option, a card behind it ----------------
@@ -1765,6 +1834,48 @@ else (async function main() {
     const t = ((p && p.firstChild && p.firstChild.nodeType === 3 ? p.firstChild.nodeValue : p && p.textContent) || "").trim();
     return k === "arson" && p && t.length >= 3 && t.length <= 30 && !p.querySelector("button:not(.ca-badge):not(.tb-badge), img") ? p : host;
   };
+  // A phone's layout can hide the section a name is in and draw the row a second way (Arson on Aaron's iPhone: place
+  // and scenario sit in a section that's display:none; the visible one shows the place alone). Then the chip goes on the
+  // visible copy of the same text in the same row.
+  const ownText = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join("").trim();
+  function nameSlot(host, k) {  // the name's spot, or its visible copy in the row
+    const slot = chipSlot(host, k);
+    if (slot.getClientRects().length) return slot;
+    const want = ownText(slot), row = slot.closest(".crime-option, [class*='virtualItem']");
+    if (want && row) for (const e of row.querySelectorAll("*"))
+      if (e !== slot && !e.closest(SKIP) && ownText(e) === want && e.getClientRects().length) return e;
+    return slot;
+  }
+  function slotFor(host, k) {
+    const slot = nameSlot(host, k);
+    // a phone: the grade sits on the row's picture (Aaron, 2026-10-18: "a badge on the location image itself"), clear
+    // of the name; pickers and rows without a picture keep it by the name
+    if (matchMedia("(max-width:600px)").matches && !host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']")) {
+      const t = thumbOf(slot);
+      if (t) return t;
+    }
+    return slot;
+  }
+  // The row's picture: the leftmost image (or picture box) in the row, left of the name and picture-sized
+  function thumbOf(slot) {
+    const row = slot.closest(".crime-option, [class*='virtualItem'], li");
+    if (!row) return null;
+    const nr = slot.getBoundingClientRect();
+    let best = null;
+    for (const e of row.querySelectorAll("img, [class*='image'], [class*='Image'], [class*='avatar'], [class*='Avatar']")) {
+      if (e.closest(SKIP)) continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 34 || r.height < 30 || r.width > 170 || r.height > 150 || r.right > nr.left + 4) continue;
+      if (!best || r.left < best.r.left) best = { e, r };
+    }
+    if (!best) return null;
+    const t = best.e.tagName === "IMG" ? best.e.parentElement : best.e;
+    if (!t.dataset.caThumb) {
+      t.dataset.caThumb = "1";
+      if (getComputedStyle(t).position === "static") t.style.position = "relative";
+    }
+    return t;
+  }
   // Burglary's "Any Industrial" (a random target of that kind, 3 nerve to scout; a type of your choice is 9): the
   // types listed with it in Torn's menu, blended by how often you've burgled each.
   const chipV = new WeakMap();
@@ -1940,7 +2051,7 @@ else (async function main() {
       const host = n.parentElement;  // (raw: the name as Torn's page shows it, for the card; the logs say "the pharmacy")
       // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips)
       if (host && !host.closest(SKIP) && !host.closest("[class*='slidingPanel'], [class*='statistic']"))
-        hits.push([host, byName.get(t), chipSlot(host, k).querySelector(":scope > .ca-chip"), raw]);
+        hits.push([host, byName.get(t), slotFor(host, k).querySelector(":scope > .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)
     const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null).map(pnOf));
@@ -1949,7 +2060,7 @@ else (async function main() {
     const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow(), phone = matchMedia("(max-width:600px)").matches;
     for (const [host, v, had, raw] of hits) {  // inside the name's own element: the page redrawing it just clears the chip
       // (two names in one row can lead to the same slot, e.g. Forgery's step label: one chip)
-      const slot = chipSlot(host, k), cur = slot.querySelector(":scope > .ca-chip");
+      const slot = slotFor(host, k), cur = slot.querySelector(":scope > .ca-chip");
       if (cur && cur !== had) continue;
       if (had && !starsHere && had.dataset.star !== "1" && had.dataset.best === String(best) && had.dataset.nerve === String(nv) &&
           had.dataset.v === String(version)) continue;
@@ -1978,8 +2089,9 @@ else (async function main() {
       if (!phone) val.append(text);  // (a phone: the grade alone, Aaron 2026-10-17; the number is in the card and the label)
       b.append($("span", "ca-t", TILE[tier]), val);
       const avg = values.overall;
-      b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
-        : `${TIERWORD[tier]}${avg && "SABC".includes(tier) ? ` (your average ${short(avg)}/nerve)` : ""}` +
+      // (no hover text on a phone: PDA showed it on tap, repeating the card's first line)
+      if (!phone) b.title = (noFT ? "Lighters only: the Flamethrower fails an accidental cause"
+        : `${TIERWORD[tier][0].toUpperCase()}${TIERWORD[tier].slice(1)}${avg && "SABC".includes(tier) ? `; your average is ${short(avg)}/nerve` : ""}` +
           (recipeOver(v) ? `, by the community recipe: your way lost ${short(-v.per_nerve)}/nerve` : "") +
           (star ? ". Torn shows a unique waiting here now" : "")) +
         (low ? `. Needs ${need} nerve; you have ${nv}` : "");
@@ -1990,6 +2102,13 @@ else (async function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
+      // (a phone's name box that cuts off what doesn't fit, Arson's place line: the chip goes first, so the name is what
+      // gets shortened, not the chip: "Travel Agent ..." hid it; Aaron's iPhone)
+      if (slot.dataset.caThumb) {  // (on the row's picture: a phone; the tap is ours, not the row's)
+        b.classList.add("onimg");
+        for (const ev of ["pointerdown", "touchstart", "mousedown"]) b.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+      }
+      else if (phone && !picker && getComputedStyle(slot).overflow !== "visible") { slot.insertBefore(b, slot.firstChild); b.classList.add("lead"); }
       if (picker) pickRight(b, host);
       if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
@@ -2000,12 +2119,14 @@ else (async function main() {
     lastByName = byName;
     const seenV = new Set();
     onPage = hits.map(([host, v, , raw]) => {
-      const slot = chipSlot(host, k), chip = slot.querySelector(":scope > .ca-chip");
-      const place = slot !== host && slot.firstChild && slot.firstChild.nodeType === 3 ? slot.firstChild.nodeValue.trim() : "";
+      // (the chip where it went; the name and whether it's on show from the name's visible spot: on a phone Arson's
+      // scenario is hidden, and the list stayed empty, so the box pointed elsewhere)
+      const ns = nameSlot(host, k), chip = slotFor(host, k).querySelector(":scope > .ca-chip");
+      const place = ns !== host && ownText(ns) ? ownText(ns) : "";
       // (glance names: "Cemetery", not "Search the Cemetery")
       return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community",
-               tier: (chip && [...chip.classList].find(c => TILE[c])) || "B" };
-    }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.host.getClientRects().length  // (on show: Disposal's
+               tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
+    }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.shown  // (on show: Disposal's
       && !seenV.has(x.v) && seenV.add(x.v)).sort((a, b) => b.pn - a.pn);                     // hidden history named jobs not on offer)
   }
   // Disposal: a reliability dot on each method's icon, and a green ring on the one to use. The icons are found by their
@@ -2077,7 +2198,8 @@ else (async function main() {
     pop.dataset.kind = v.kind;
     pop.setAttribute("role", "dialog");
     pop.setAttribute("aria-label", name);
-    if (innerWidth < 600) pop.classList.add("ca-sheet");
+    // (a phone: the card goes into the panel, one surface and one way back; Aaron, 2026-10-18: "protect the user path")
+    if (innerWidth < 600) pop.classList.add("ca-inpanel");
     popChip = anchor;
     anchor.setAttribute("aria-expanded", "true");
     const hd = $("div", "ca-hd"), x = $("button", "ca-x", "\u2715");
@@ -2189,19 +2311,30 @@ else (async function main() {
       ["Paid out", v.win_rate != null ? `${pc(v.win_rate)} of targets` : null],
       ["Share of its top pay", v.your_share != null ? pc(v.your_share) : null]]));
     if (!dig.childNodes.length) more.remove();
-    body.appendChild(pop);
+    if (pop.classList.contains("ca-inpanel")) {
+      if (!panel) btn.onclick(); else renderPanel();
+      if (panel) panel.scrollTop = 0;
+    } else body.appendChild(pop);
     place();
+    // a phone's panel covers the lower half: the crime's row goes up near the top, so the row, its button and the
+    // card are all in view (Aaron, 2026-10-18)
+    if (pop.classList.contains("ca-inpanel")) {
+      const row = anchor.closest(".crime-option, [class*='virtualItem'], li") || anchor;
+      scrollBy({ top: row.getBoundingClientRect().top - 60, behavior: "smooth" });
+    }
     function place() {  // under the chip (above it when there's no room); a sheet on a phone stays put
-      if (!pop || pop.classList.contains("ca-sheet")) return;
+      if (!pop || pop.classList.contains("ca-inpanel")) return;
       const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, hgt = pop.offsetHeight;
       const left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
       const top = r.bottom + 6 + hgt < innerHeight ? r.bottom + 6 : Math.max(8, r.top - hgt - 6);
       Object.assign(pop.style, { left: left + "px", top: top + "px" });
     }
   }
-  document.addEventListener("click", e => { if (pop && !pop.contains(e.target)) closePop(); });
+  document.addEventListener("click", e => {  // (a card in the panel stays while you use the panel)
+    if (pop && !pop.contains(e.target) && !(pop.classList.contains("ca-inpanel") && e.target.closest && e.target.closest(".ca-panel, .ca-btn"))) closePop();
+  });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closePop(); });
-  addEventListener("scroll", closePop, { passive: true });
+  addEventListener("scroll", () => { if (pop && !pop.classList.contains("ca-inpanel")) closePop(); }, { passive: true });  // (a card in the panel stays)
 
   // ---- a crime's result, valued: "WORTH $12k" at the end of the result row (market value; the breakdown on hover).
   // Green at or above your usual per try there (the row's chip), grey below, bright green at 2x or $50k. Prices come
@@ -2260,7 +2393,10 @@ else (async function main() {
   // scrolls to its option and flashes it; one elsewhere links to its page (one page per click, yours).
   function flash(x) {
     if (!x.host.isConnected) return;
-    const { row } = requirements(x.host, lastByName), chip = chipSlot(x.host, tabKey(tab)).querySelector(":scope > .ca-chip");
+    // (the row you can see: on a phone the name's own section can be hidden)
+    let { row } = requirements(x.host, lastByName);
+    if (!row.getClientRects().length) row = x.host.closest(".crime-option, [class*='virtualItem']") || row;
+    const chip = slotFor(x.host, tabKey(tab)).querySelector(":scope > .ca-chip");
     row.scrollIntoView({ block: "center", behavior: "smooth" });
     for (const e of [row, chip]) {
       if (!e) continue;
@@ -2347,10 +2483,12 @@ else (async function main() {
   // thing to do: the best here at your average or above, else what to wait for here, else the best crime elsewhere,
   // else (muted) the best on show. On the hub: the best crime.
   function glance() {
+    btn.classList.toggle("ca-hasupd", updReady());  // (a dot: an update is ready)
     const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere } = plan(k);
     let tier = null, line = "", tip = "", muted = false;
     if (here.length) {
-      const x = here[0]; tier = x.tier; line = x.name;
+      // (a phone: the place alone, "Sports Arena", not "Sports Arena: Boxing Clever"; the card has the job)
+      const x = here[0]; tier = x.tier; line = matchMedia("(max-width:600px)").matches ? x.name.split(": ")[0] : x.name;
       tip = `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
     } else if (wait) {
       line = `\u23f3 ${wait.name}`;  // (the hourglass says wait or scout: "Scout for Foundry" didn't fit beside the chat bar)
@@ -2419,7 +2557,8 @@ else (async function main() {
     const max = document.documentElement.scrollHeight - innerHeight;
     if (scrollY < 0 || scrollY > max + 1) { setTimeout(() => { clearAt = 0; bottomClear(); }, 200); return; }
     clearAt = Date.now();
-    let h = 0, left = innerWidth;
+    let h = 0, left = innerWidth, leftAt = "";
+    const bars = new Set();
     for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
       for (const el of document.elementsFromPoint(x, innerHeight - 4)) {
         if (el.closest(OURS) || el === document.documentElement || el === body) continue;
@@ -2437,13 +2576,27 @@ else (async function main() {
             top = Math.min(top, r.top);
           }
           if (top < innerHeight) h = Math.max(h, innerHeight - top);
-          // where the bar's own pieces start (its box can span the screen while its icons sit on the right): the
-          // leftmost small box in it at the bottom of the screen
-          for (const c of n.querySelectorAll("*")) {
-            const r = c.getBoundingClientRect();
-            if (r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight) left = Math.min(left, r.left);
-          }
-          if (left === innerWidth) left = Math.min(left, n.getBoundingClientRect().left);  // (a bar with no pieces of its own)
+          bars.add(n);
+          break;
+        }
+      }
+    }
+    // Where the bar starts: along its middle line from the left, the first spot whose top element (not ours) is in the
+    // bar and painted (an icon, an image, text or a colour). Its box can span the screen while its icons sit on the
+    // right, and see-through parts of it at the far left had lifted the box over it.
+    const painted = e => { const cs = getComputedStyle(e);
+      return /^(img|svg|canvas|i)$/i.test(e.tagName) || !!ownText(e) || cs.backgroundImage !== "none" || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor); };
+    if (h && bars.size) {
+      const y = innerHeight - Math.max(4, Math.min(h, 60) / 2);
+      for (let x = 4; x < innerWidth; x += 6) {
+        const e = document.elementsFromPoint(x, y).find(el => !el.closest(OURS) && el !== document.documentElement && el !== body);
+        const bar = e && [...bars].find(n => n.contains(e));
+        if (!bar) continue;
+        let p = e;
+        while (p && p !== bar && !painted(p)) p = p.parentElement;
+        if (p && p !== bar) {
+          left = x;
+          leftAt = `${p.tagName.toLowerCase()}${typeof p.className === "string" && p.className.trim() ? "." + p.className.trim().split(/\s+/)[0] : ""}`;
           break;
         }
       }
@@ -2453,7 +2606,7 @@ else (async function main() {
     de.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     de.setProperty("--ca-btn-lift", beside ? "0px" : `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     if (beside) de.setProperty("--ca-room", `${room}px`); else de.removeProperty("--ca-room");
-    barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${beside ? " (button beside it)" : " (button above it)"}` : "none";
+    barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${leftAt ? ` (${leftAt})` : ""}${beside ? ", button beside it" : ", button above it"}` : "none";
   }
   var barSeen = "not measured";  // (var: the panel can ask before this line has run)
   addEventListener("resize", () => { clearAt = 0; bottomClear(); });
