@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.20
+// @version      2.2.21
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -627,13 +627,13 @@ const CA = (() => {
   }
 
   return { classify, load, arsonJobs, scamConversations, community, report, pageValues, jobTitle, slug, NAMES, disposalMethods,
-           outcomes, leaders, SCOUT_ANY };
+           outcomes, leaders, SCOUT_ANY, gkey };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.20";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.21";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1051,6 +1051,7 @@ else (async function main() {
     .ca-stepn{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#ff8a3d;color:#1a0d04;font:800 12px system-ui,sans-serif}
     .ca-stepv{font:700 10.5px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffb27a}
     .ca-stept{font:600 14px system-ui,sans-serif;color:#fff3e8;overflow-wrap:anywhere}.ca-stept .ca-qty{color:#ffd2ad;margin-right:2px}
+    .ca-newtag{flex:none;padding:1px 6px;border-radius:999px;background:#3a2f12;color:#e3b341;font:700 10px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.06em}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
     .ca-foot{margin-top:10px;padding-top:8px;border-top:1px solid #2c2c2a;display:grid;gap:6px}
     .ca-prog{height:3px;border-radius:2px;background:#232321;overflow:hidden}.ca-prog span{display:block;height:100%;background:#2a78d6;transition:width .4s}
@@ -2192,7 +2193,20 @@ else (async function main() {
                tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
     }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.shown  // (on show: Disposal's
       && !seenV.has(x.v) && seenV.add(x.v)).sort((a, b) => b.pn - a.pn);                     // hidden history named jobs not on offer)
+    noteSeen(k);
   }
+  // Options as they first show on their page: one that appears for the first time (unlocked as your skill rose, or a
+  // burglary target first scouted) is "Just unlocked" for 3 days. The first look at a crime marks what's there as known.
+  // (Aaron, 2026-10-18: the guide's estimates apply directly to options unlocked while levelling.)
+  const NEW_DAYS = 3;
+  function noteSeen(k) {
+    if (!onPage.length) return;
+    const all = get("optsSeen", {}), mine = all[k], rec = { ...(mine || {}) };
+    let changed = !mine;
+    for (const x of onPage) { const key = CA.gkey(x.v.kind); if (!(key in rec)) { rec[key] = mine ? Date.now() : 0; changed = true; } }
+    if (changed) set("optsSeen", { ...all, [k]: rec });
+  }
+  const isNew = (k, v) => { const at = ((get("optsSeen", {})[k]) || {})[CA.gkey(v.kind)]; return at > 0 && Date.now() - at < NEW_DAYS * 86400000; };
   // Disposal: a reliability dot on each method's icon, and a green ring on the one to use. The icons are found by their
   // labels ("Abandon", "Bury"...); if Torn's labels don't say, nothing is drawn (the card still has it all).
   const VERB = { Abandoning: /abandon|leave/i, Burying: /bury/i, Burning: /burn/i, Sinking: /sink/i, Dissolving: /dissolv/i };
@@ -2258,6 +2272,7 @@ else (async function main() {
     closePop();
     if (reopen) return;
     const { name, tier, best, noFT, star, need, nv, low } = ctx, avg = values && values.overall, o = v.outcomes;
+    const skNow = ((values && values.crime_skill) || {})[CA.slug(CA.NAMES[v.crime_id] || "")];  // (your skill in this crime)
     pop = $("div", "ca-pop ca-card");
     pop.dataset.kind = v.kind;
     pop.setAttribute("role", "dialog");
@@ -2317,6 +2332,7 @@ else (async function main() {
     }
     // pills: what you must know before you commit
     const ft = $("div", "ca-ft"), pill = (cls, t, tip) => { const p = $("span", `ca-pill ${cls}`, t); if (tip) p.title = tip; ft.append(p); };
+    if (tab && isNew(tabKey(tab), v)) pill("gold", "Just unlocked", "First on this page in the last few days" + (v.guide != null ? ": the guide's estimate stands in until you've tried it" : ""));
     if (fellShort != null) pill("bad", "No payout", "It needs total destruction: 100%");
     if (pk) {
       pill("go", `${VERBS[pk.method]} \u00b7 ${pk.p == null ? "?" : pc(pk.p)} \u00b7 ${Math.round(pk.nerve)} nerve`, "The method with the best expected $/nerve here (reliability: the community chart, updated by your results)");
@@ -2358,7 +2374,7 @@ else (async function main() {
       ["Best on show", best > -Infinity ? `${short(best)}/nerve` : null],
       ["Vs your usual here", v.vs_crime != null ? `${v.vs_crime.toFixed(1)}\u00d7` : null],
       ["Community recipe", c && c.per_nerve != null ? `~${short(c.per_nerve)}/nerve` : null],
-      ["Guide", v.guide != null ? `~${short(v.guide)}/nerve` : null],
+      ["Guide", v.guide != null ? `~${short(v.guide)}/nerve at max skill` + (skNow != null && skNow < 100 ? ` (you're at ${skNow}: expect less for now)` : "") : null],
       ["Your own", v.own_per_nerve != null ? `${short(v.own_per_nerve)}/nerve over ${v.count} ${v.unit}` : null],
       ["From", v.source === "community" ? "community estimate" : v.source === "guide" ? "the guide: you haven't tried it (Emforus, max skill)"
         : v.guide != null ? `your logs, with the guide counted as 8 tries` : "your logs"]]));
@@ -2507,6 +2523,7 @@ else (async function main() {
       b.title = "Show it on the page";
       b.append($("span", `ca-tier ${x.tier}`, TILE[x.tier]), $("span", "ca-name", x.name), $("span", "ca-loc", "\u2316"));
       b.onclick = e => { e.preventDefault(); e.stopPropagation(); flash(x); };
+      if (k && isNew(k, x.v)) b.append($("span", "ca-newtag", "new"));  // (just unlocked)
       li.append(b, $("span", "ca-muted", `${x.est ? "~" : ""}${short(x.pn)}/n`));
       return li;
     };
