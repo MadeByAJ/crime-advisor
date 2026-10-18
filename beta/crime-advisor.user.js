@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.1
+// @version      2.3.2
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.1";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.2";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1084,7 +1084,7 @@ else (async function main() {
     .ca-avg{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:#232321;color:#c3c2b7;font:600 11px system-ui,sans-serif;font-variant-numeric:tabular-nums;cursor:help;white-space:nowrap}
     .ca-avg i{display:inline-block;width:2px;height:10px;border-radius:1px;background:#c3c2b7;margin-right:6px}
     .ca-panel .ca-ic{all:unset;cursor:pointer;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:#8f8e86;font:15px/1 system-ui,sans-serif}
-    .ca-panel .ca-ic.on{background:#2c2c2a;color:#9cc8ff}.ca-panel .ca-ic:focus-visible{outline:2px solid #9cc8ff}
+    .ca-panel .ca-ic.on{background:#2c2c2a;color:#9cc8ff}.ca-panel .ca-ic.ca-back{font-size:22px;color:#9cc8ff;margin-right:-4px}.ca-panel .ca-ic:focus-visible{outline:2px solid #9cc8ff}
     .ca-vh{font:700 12px system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#9cc8ff;margin:2px 0 8px}
     .ca-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 10px}
     .ca-tile{background:#232321;border-radius:8px;padding:6px 9px}.ca-tile b{display:block;font:700 15px system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#f3f3f1}
@@ -1268,6 +1268,12 @@ else (async function main() {
     const h = $("div", "ca-ph"), x = $("button", "ca-x", "\u2715");
     x.type = "button"; x.setAttribute("aria-label", "Close");
     x.onclick = () => { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); };
+    if (view !== "advice") {  // (a way back besides the icon again: Aaron, 2026-10-19)
+      const back = $("button", "ca-ic ca-back", "\u2039");
+      back.type = "button"; back.title = "Back"; back.setAttribute("aria-label", "Back to advice");
+      back.onclick = e => { e.stopPropagation(); view = "advice"; renderPanel(); panel.scrollTop = 0; };
+      h.append(back);
+    }
     h.append($("b", "", "Crime Advisor"));
     if (key && avg && view === "advice") {
       const a = $("span", "ca-avg");
