@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.5
+// @version      2.2.6
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1782,6 +1782,19 @@ else (async function main() {
     const t = ((p && p.firstChild && p.firstChild.nodeType === 3 ? p.firstChild.nodeValue : p && p.textContent) || "").trim();
     return k === "arson" && p && t.length >= 3 && t.length <= 30 && !p.querySelector("button:not(.ca-badge):not(.tb-badge), img") ? p : host;
   };
+  // A phone's layout can hide the section a name is in and draw the row a second way (Arson on Aaron's iPhone: place
+  // and scenario sit in a section that's display:none; the visible one shows the place alone). Then the chip goes on the
+  // visible copy of the same text in the same row.
+  const ownText = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join("").trim();
+  function slotFor(host, k) {
+    const slot = chipSlot(host, k);
+    if (slot.getClientRects().length) return slot;
+    const want = ownText(slot), row = slot.closest(".crime-option, [class*='virtualItem']");
+    if (!want || !row) return slot;
+    for (const e of row.querySelectorAll("*"))
+      if (e !== slot && !e.closest(SKIP) && ownText(e) === want && e.getClientRects().length) return e;
+    return slot;
+  }
   // Burglary's "Any Industrial" (a random target of that kind, 3 nerve to scout; a type of your choice is 9): the
   // types listed with it in Torn's menu, blended by how often you've burgled each.
   const chipV = new WeakMap();
@@ -1957,7 +1970,7 @@ else (async function main() {
       const host = n.parentElement;  // (raw: the name as Torn's page shows it, for the card; the logs say "the pharmacy")
       // (not in Torn's statistics slide-out, which names every type too: on a phone its hidden labels took the chips)
       if (host && !host.closest(SKIP) && !host.closest("[class*='slidingPanel'], [class*='statistic']"))
-        hits.push([host, byName.get(t), chipSlot(host, k).querySelector(":scope > .ca-chip"), raw]);
+        hits.push([host, byName.get(t), slotFor(host, k).querySelector(":scope > .ca-chip"), raw]);
     }
     // the best $/nerve among the options on show (the S tier)
     const best = Math.max(-Infinity, ...hits.map(h => h[1]).filter(v => !v.few && v.per_nerve != null).map(pnOf));
@@ -1966,7 +1979,7 @@ else (async function main() {
     const starsHere = [...root.querySelectorAll("[aria-label]")].some(isStar), nv = nerveNow(), phone = matchMedia("(max-width:600px)").matches;
     for (const [host, v, had, raw] of hits) {  // inside the name's own element: the page redrawing it just clears the chip
       // (two names in one row can lead to the same slot, e.g. Forgery's step label: one chip)
-      const slot = chipSlot(host, k), cur = slot.querySelector(":scope > .ca-chip");
+      const slot = slotFor(host, k), cur = slot.querySelector(":scope > .ca-chip");
       if (cur && cur !== had) continue;
       if (had && !starsHere && had.dataset.star !== "1" && had.dataset.best === String(best) && had.dataset.nerve === String(nv) &&
           had.dataset.v === String(version)) continue;
@@ -2017,7 +2030,7 @@ else (async function main() {
     lastByName = byName;
     const seenV = new Set();
     onPage = hits.map(([host, v, , raw]) => {
-      const slot = chipSlot(host, k), chip = slot.querySelector(":scope > .ca-chip");
+      const slot = slotFor(host, k), chip = slot.querySelector(":scope > .ca-chip");
       const place = slot !== host && slot.firstChild && slot.firstChild.nodeType === 3 ? slot.firstChild.nodeValue.trim() : "";
       // (glance names: "Cemetery", not "Search the Cemetery")
       return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community",
@@ -2461,7 +2474,9 @@ else (async function main() {
             if (!(r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight && r.left < left)) continue;
             // (only pieces you can see there: an invisible one at the far left sometimes lifted the box over the bar)
             const at = document.elementFromPoint(r.left + r.width / 2, Math.min(innerHeight - 2, r.top + r.height / 2));
-            if (at && (at === c || c.contains(at))) left = r.left;
+            const cs = getComputedStyle(c), painted = /^(IMG|SVG|CANVAS|I)$/i.test(c.tagName) || ownText(c) ||
+              cs.backgroundImage !== "none" || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor);
+            if (painted && at && (at === c || c.contains(at))) left = r.left;  // (see-through boxes don't count: one at x 0 did)
           }
           if (left === innerWidth) left = Math.min(left, n.getBoundingClientRect().left);  // (a bar with no pieces of its own)
           break;
