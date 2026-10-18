@@ -30,7 +30,6 @@ Your newest logs load first, so grades appear within seconds. Older logs load in
 | **C** | Under half your average |
 | **✕** | Loses money |
 | **?** | Too few tries to judge yet |
-| **⚠** | A trap, e.g. a Flamethrower on an accidental-fire job |
 | **★** | Torn shows a one-time unique waiting there now |
 
 **The panel** (the bottom-left button):
