@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.6
+// @version      2.2.7
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -986,7 +986,7 @@ else (async function main() {
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
       .ca-badge.ca-hud.ca-chip{min-height:20px;font-size:10.5px;margin-left:6px}.ca-hud .ca-v:empty{display:none}
-      .ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
+      .ca-badge.ca-hud.ca-chip.lead{margin:0 6px 0 0;vertical-align:middle}.ca-hud.pick{pointer-events:none}.ca-hud.pick-r{position:absolute;right:10px;top:50%;transform:translateY(-50%);margin:0}
     }
     .ca-comm{display:grid;gap:4px}.ca-commask{display:grid;gap:4px;font-size:11px;color:#c3c2b7;background:#232321;border-radius:8px;padding:8px 10px}.ca-commst{font-size:11px}
     .ca-more{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
@@ -2020,6 +2020,9 @@ else (async function main() {
       // before Torn's abandon cross where a row has one (Burglary's targets): it grows on hover and pushed the chip
       // out from under the cursor
       slot.insertBefore(b, slot.querySelector(":scope > [class*='abandonButton']"));
+      // (a phone's name box that cuts off what doesn't fit, Arson's place line: the chip goes first, so the name is what
+      // gets shortened, not the chip: "Travel Agent ..." hid it; Aaron's iPhone)
+      if (phone && !picker && getComputedStyle(slot).overflow !== "visible") { slot.insertBefore(b, slot.firstChild); b.classList.add("lead"); }
       if (picker) pickRight(b, host);
       if ((picker || tight) && !phone) [0, 450, 1200].forEach(ms => setTimeout(() => fitChip(b), ms));
       chipV.set(b, v);
@@ -2449,7 +2452,8 @@ else (async function main() {
     const max = document.documentElement.scrollHeight - innerHeight;
     if (scrollY < 0 || scrollY > max + 1) { setTimeout(() => { clearAt = 0; bottomClear(); }, 200); return; }
     clearAt = Date.now();
-    let h = 0, left = innerWidth;
+    let h = 0, left = innerWidth, leftAt = "";
+    const bars = new Set();
     for (const x of [innerWidth * 0.2, innerWidth * 0.5, innerWidth * 0.8, innerWidth - 12]) {
       for (const el of document.elementsFromPoint(x, innerHeight - 4)) {
         if (el.closest(OURS) || el === document.documentElement || el === body) continue;
@@ -2467,18 +2471,27 @@ else (async function main() {
             top = Math.min(top, r.top);
           }
           if (top < innerHeight) h = Math.max(h, innerHeight - top);
-          // where the bar's own pieces start (its box can span the screen while its icons sit on the right): the
-          // leftmost small box in it at the bottom of the screen
-          for (const c of n.querySelectorAll("*")) {
-            const r = c.getBoundingClientRect();
-            if (!(r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight && r.left < left)) continue;
-            // (only pieces you can see there: an invisible one at the far left sometimes lifted the box over the bar)
-            const at = document.elementFromPoint(r.left + r.width / 2, Math.min(innerHeight - 2, r.top + r.height / 2));
-            const cs = getComputedStyle(c), painted = /^(IMG|SVG|CANVAS|I)$/i.test(c.tagName) || ownText(c) ||
-              cs.backgroundImage !== "none" || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor);
-            if (painted && at && (at === c || c.contains(at))) left = r.left;  // (see-through boxes don't count: one at x 0 did)
-          }
-          if (left === innerWidth) left = Math.min(left, n.getBoundingClientRect().left);  // (a bar with no pieces of its own)
+          bars.add(n);
+          break;
+        }
+      }
+    }
+    // Where the bar starts: along its middle line from the left, the first spot whose top element (not ours) is in the
+    // bar and painted (an icon, an image, text or a colour). Its box can span the screen while its icons sit on the
+    // right, and see-through parts of it at the far left had lifted the box over it.
+    const painted = e => { const cs = getComputedStyle(e);
+      return /^(img|svg|canvas|i)$/i.test(e.tagName) || !!ownText(e) || cs.backgroundImage !== "none" || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor); };
+    if (h && bars.size) {
+      const y = innerHeight - Math.max(4, Math.min(h, 60) / 2);
+      for (let x = 4; x < innerWidth; x += 6) {
+        const e = document.elementsFromPoint(x, y).find(el => !el.closest(OURS) && el !== document.documentElement && el !== body);
+        const bar = e && [...bars].find(n => n.contains(e));
+        if (!bar) continue;
+        let p = e;
+        while (p && p !== bar && !painted(p)) p = p.parentElement;
+        if (p && p !== bar) {
+          left = x;
+          leftAt = `${p.tagName.toLowerCase()}${typeof p.className === "string" && p.className.trim() ? "." + p.className.trim().split(/\s+/)[0] : ""}`;
           break;
         }
       }
@@ -2488,7 +2501,7 @@ else (async function main() {
     de.setProperty("--ca-bottom", `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     de.setProperty("--ca-btn-lift", beside ? "0px" : `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     if (beside) de.setProperty("--ca-room", `${room}px`); else de.removeProperty("--ca-room");
-    barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${beside ? " (button beside it)" : " (button above it)"}` : "none";
+    barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${leftAt ? ` (${leftAt})` : ""}${beside ? ", button beside it" : ", button above it"}` : "none";
   }
   var barSeen = "not measured";  // (var: the panel can ask before this line has run)
   addEventListener("resize", () => { clearAt = 0; bottomClear(); });
