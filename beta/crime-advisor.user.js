@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.4
+// @version      2.2.5
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -2458,7 +2458,10 @@ else (async function main() {
           // leftmost small box in it at the bottom of the screen
           for (const c of n.querySelectorAll("*")) {
             const r = c.getBoundingClientRect();
-            if (r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight) left = Math.min(left, r.left);
+            if (!(r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.bottom > innerHeight - 80 && r.top < innerHeight && r.left < left)) continue;
+            // (only pieces you can see there: an invisible one at the far left sometimes lifted the box over the bar)
+            const at = document.elementFromPoint(r.left + r.width / 2, Math.min(innerHeight - 2, r.top + r.height / 2));
+            if (at && (at === c || c.contains(at))) left = r.left;
           }
           if (left === innerWidth) left = Math.min(left, n.getBoundingClientRect().left);  // (a bar with no pieces of its own)
           break;
