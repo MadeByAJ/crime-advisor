@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.0
+// @version      2.2.1
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Everything stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -699,7 +699,9 @@ else (async function main() {
     finally { clearTimeout(t); }
   }
   async function http(opts) {
-    const byFetch = (PDA && /^https:\/\/api\.torn\.com\//.test(opts.url)) || typeof GM_xmlhttpRequest !== "function";
+    // (tornbrain.com too, in PDA: the app's own requests don't look like a browser's, and Cloudflare in front of
+    // api.tornbrain.com could take them for a bot)
+    const byFetch = (PDA && /^https:\/\/api\.torn(brain)?\.com\//.test(opts.url)) || typeof GM_xmlhttpRequest !== "function";
     const host = new URL(opts.url).host;
     try {
       const r = byFetch ? await fetchText(opts) : await new Promise((res, rej) => GM_xmlhttpRequest({ ...opts, timeout: 30000,
