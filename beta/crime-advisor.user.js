@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.12
+// @version      2.2.13
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1059,6 +1059,7 @@ else (async function main() {
     .ca-dig .ca-body{padding:0 0 10px;font-size:12px;color:#c3c2b7;display:grid;gap:4px}
     .ca-kv{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}.ca-kv span:last-child{text-align:right}
     .ca-card > .ca-body{display:grid;gap:4px;font-size:12px;color:#c3c2b7}.ca-kvl{display:grid;grid-template-columns:auto 1fr;gap:10px}.ca-kvl span:first-child{color:#8f8e86}
+    .ca-panel .ca-pop.ca-inpanel{position:static;width:auto;max-height:none;overflow:visible;box-shadow:none;border:0;border-radius:0;background:none;padding:2px 0 12px;margin:0 0 10px;border-bottom:1px solid #2c2c2a}
     .ca-pop.ca-sheet{left:0!important;right:0;bottom:var(--ca-bottom,0px);top:auto!important;width:auto;max-height:calc(75vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;
       padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
     .ca-meth{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:4px}
@@ -1085,7 +1086,7 @@ else (async function main() {
   btn.append($("span", "ca-bt", "Crime Advisor"));
   btn.type = "button";
   if (onCrimes) body.appendChild(btn);
-  btn.onclick = () => { if (panel) { panel.remove(); panel = null; } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
+  btn.onclick = () => { if (panel) { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
   setInterval(async () => {  // while the panel is open: another tab's progress shows up here too
     if (!panel) return;
     const typing = panel.querySelector("input");
@@ -1105,7 +1106,7 @@ else (async function main() {
     const key = get("key", ""), avg = (values && values.overall) || 0;
     const h = $("div", "ca-ph"), x = $("button", "ca-x", "\u2715");
     x.type = "button"; x.setAttribute("aria-label", "Close");
-    x.onclick = () => { panel.remove(); panel = null; };
+    x.onclick = () => { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); };
     h.append($("b", "", "Crime Advisor"));
     if (key && avg) {
       const a = $("span", "ca-avg");
@@ -1115,6 +1116,7 @@ else (async function main() {
     }
     h.append(x);
     panel.append(h);
+    if (pop && pop.classList.contains("ca-inpanel")) panel.append(pop);  // (a crime's card, on a phone)
     if (priceDenied) {  // (a log-only key from 1.x: everything it found counts as $0 until it can read prices)
       panel.append($("div", "ca-err ca-alert", "This key can't read item prices, so items count as $0. Make a new key below."));
       keyOpen = true;
@@ -2147,7 +2149,8 @@ else (async function main() {
     pop.dataset.kind = v.kind;
     pop.setAttribute("role", "dialog");
     pop.setAttribute("aria-label", name);
-    if (innerWidth < 600) pop.classList.add("ca-sheet");
+    // (a phone: the card goes into the panel, one surface and one way back; Aaron, 2026-10-18: "protect the user path")
+    if (innerWidth < 600) pop.classList.add("ca-inpanel");
     popChip = anchor;
     anchor.setAttribute("aria-expanded", "true");
     const hd = $("div", "ca-hd"), x = $("button", "ca-x", "\u2715");
@@ -2259,25 +2262,30 @@ else (async function main() {
       ["Paid out", v.win_rate != null ? `${pc(v.win_rate)} of targets` : null],
       ["Share of its top pay", v.your_share != null ? pc(v.your_share) : null]]));
     if (!dig.childNodes.length) more.remove();
-    body.appendChild(pop);
+    if (pop.classList.contains("ca-inpanel")) {
+      if (!panel) btn.onclick(); else renderPanel();
+      if (panel) panel.scrollTop = 0;
+    } else body.appendChild(pop);
     place();
-    // a phone's sheet covers the lower half: the crime's row goes up near the top, so the row, its button and the
+    // a phone's panel covers the lower half: the crime's row goes up near the top, so the row, its button and the
     // card are all in view (Aaron, 2026-10-18)
-    if (pop.classList.contains("ca-sheet")) {
+    if (pop.classList.contains("ca-inpanel")) {
       const row = anchor.closest(".crime-option, [class*='virtualItem'], li") || anchor;
       scrollBy({ top: row.getBoundingClientRect().top - 60, behavior: "smooth" });
     }
     function place() {  // under the chip (above it when there's no room); a sheet on a phone stays put
-      if (!pop || pop.classList.contains("ca-sheet")) return;
+      if (!pop || pop.classList.contains("ca-inpanel")) return;
       const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, hgt = pop.offsetHeight;
       const left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
       const top = r.bottom + 6 + hgt < innerHeight ? r.bottom + 6 : Math.max(8, r.top - hgt - 6);
       Object.assign(pop.style, { left: left + "px", top: top + "px" });
     }
   }
-  document.addEventListener("click", e => { if (pop && !pop.contains(e.target)) closePop(); });
+  document.addEventListener("click", e => {  // (a card in the panel stays while you use the panel)
+    if (pop && !pop.contains(e.target) && !(pop.classList.contains("ca-inpanel") && e.target.closest && e.target.closest(".ca-panel, .ca-btn"))) closePop();
+  });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closePop(); });
-  addEventListener("scroll", () => { if (pop && !pop.classList.contains("ca-sheet")) closePop(); }, { passive: true });  // (a phone's sheet stays)
+  addEventListener("scroll", () => { if (pop && !pop.classList.contains("ca-inpanel")) closePop(); }, { passive: true });  // (a card in the panel stays)
 
   // ---- a crime's result, valued: "WORTH $12k" at the end of the result row (market value; the breakdown on hover).
   // Green at or above your usual per try there (the row's chip), grey below, bright green at 2x or $50k. Prices come
