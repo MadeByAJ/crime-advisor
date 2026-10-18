@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.8
+// @version      2.2.9
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1787,13 +1787,16 @@ else (async function main() {
   // and scenario sit in a section that's display:none; the visible one shows the place alone). Then the chip goes on the
   // visible copy of the same text in the same row.
   const ownText = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join("").trim();
+  function nameSlot(host, k) {  // the name's spot, or its visible copy in the row
+    const slot = chipSlot(host, k);
+    if (slot.getClientRects().length) return slot;
+    const want = ownText(slot), row = slot.closest(".crime-option, [class*='virtualItem']");
+    if (want && row) for (const e of row.querySelectorAll("*"))
+      if (e !== slot && !e.closest(SKIP) && ownText(e) === want && e.getClientRects().length) return e;
+    return slot;
+  }
   function slotFor(host, k) {
-    let slot = chipSlot(host, k);
-    if (!slot.getClientRects().length) {
-      const want = ownText(slot), row = slot.closest(".crime-option, [class*='virtualItem']");
-      if (want && row) for (const e of row.querySelectorAll("*"))
-        if (e !== slot && !e.closest(SKIP) && ownText(e) === want && e.getClientRects().length) { slot = e; break; }
-    }
+    const slot = nameSlot(host, k);
     // a phone: the grade sits on the row's picture (Aaron, 2026-10-18: "a badge on the location image itself"), clear
     // of the name; pickers and rows without a picture keep it by the name
     if (matchMedia("(max-width:600px)").matches && !host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']")) {
@@ -2061,12 +2064,14 @@ else (async function main() {
     lastByName = byName;
     const seenV = new Set();
     onPage = hits.map(([host, v, , raw]) => {
-      const slot = slotFor(host, k), chip = slot.querySelector(":scope > .ca-chip");
-      const place = slot !== host && slot.firstChild && slot.firstChild.nodeType === 3 ? slot.firstChild.nodeValue.trim() : "";
+      // (the chip where it went; the name and whether it's on show from the name's visible spot: on a phone Arson's
+      // scenario is hidden, and the list stayed empty, so the box pointed elsewhere)
+      const ns = nameSlot(host, k), chip = slotFor(host, k).querySelector(":scope > .ca-chip");
+      const place = ns !== host && ownText(ns) ? ownText(ns) : "";
       // (glance names: "Cemetery", not "Search the Cemetery")
       return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community",
-               tier: (chip && [...chip.classList].find(c => TILE[c])) || "B" };
-    }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.host.getClientRects().length  // (on show: Disposal's
+               tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
+    }).filter(x => !x.v.few && x.tier !== "G" && x.pn > 0 && x.shown  // (on show: Disposal's
       && !seenV.has(x.v) && seenV.add(x.v)).sort((a, b) => b.pn - a.pn);                     // hidden history named jobs not on offer)
   }
   // Disposal: a reliability dot on each method's icon, and a green ring on the one to use. The icons are found by their
@@ -2321,7 +2326,10 @@ else (async function main() {
   // scrolls to its option and flashes it; one elsewhere links to its page (one page per click, yours).
   function flash(x) {
     if (!x.host.isConnected) return;
-    const { row } = requirements(x.host, lastByName), chip = chipSlot(x.host, tabKey(tab)).querySelector(":scope > .ca-chip");
+    // (the row you can see: on a phone the name's own section can be hidden)
+    let { row } = requirements(x.host, lastByName);
+    if (!row.getClientRects().length) row = x.host.closest(".crime-option, [class*='virtualItem']") || row;
+    const chip = slotFor(x.host, tabKey(tab)).querySelector(":scope > .ca-chip");
     row.scrollIntoView({ block: "center", behavior: "smooth" });
     for (const e of [row, chip]) {
       if (!e) continue;
