@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.2.25
+// @version      2.2.26
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -363,6 +363,20 @@ const CA = (() => {
              uniques: h.uniques.map(([money, got]) => ({ items: got.map(([i, q]) => nm(i) + (q > 1 ? ` \u00d7${q}` : "")),
                                                           value: Math.round(money + got.reduce((s, [i, q]) => s + (price[i] || 0) * q, 0)) })) };
   }
+  // Forgery while levelling (Aaron, 2026-10-18: "we're not really doing this one for money"): a critical fail costs
+  // skill (26 of his 62 came with a level-down) and can lose a tool (Travel Visa's Embosser). Each project's last 200
+  // steps: critical fails per step, smoothed so a short clean run isn't perfect, and tools lost. His logs took about as
+  // many steps a level on a Level 25 project at skill 50 as on a Level 50 one at 60, so XP a step is taken as even
+  // (unverified).
+  const LEVEL_STEPS = 200;
+  function levelling(steps) {
+    if (!steps || !steps.length) return null;
+    const s = steps.slice(-LEVEL_STEPS), crits = s.filter(x => x[0]).length, by = {};
+    for (const x of s) if (x[0]) by[x[3]] = (by[x[3]] || 0) + 1;
+    const worst = Object.entries(by).sort((a, b) => b[1] - a[1])[0];
+    return { steps: s.length, crits, rate: r3((crits + 0.5) / (s.length + 10)), tools_lost: s.reduce((a, x) => a + x[2], 0),
+             lost_per_step: Math.round(s.reduce((a, x) => a + x[1], 0) / s.length), worst: worst ? worst[0] : null, worst_n: worst ? worst[1] : 0 };
+  }
   // $/nerve from here on: a unique outcome pays once, so its nerve and what it paid are left out (the totals keep it);
   // so is an event-only drop, except while its event is on.
   function ahead(net, nerve, t) {
@@ -412,7 +426,7 @@ const CA = (() => {
     const get = (m, k) => m.get(k) || m.set(k, blank()).get(k);
     // Materials are logged in the same second as the step they were for: charged to what that step was done to (and,
     // for disposal, to how: burning's gasoline, dissolving's acid).
-    const stepAt = new Map(), how = new Map();
+    const stepAt = new Map(), how = new Map(), lvlSteps = new Map();
     for (const e of events) if (e.isStep && KIND_CRIMES.has(e.crime)) stepAt.set(`${e.ts}|${e.crime}`, [e.detail || e.action, e.action]);
     for (const e of events) {
       if (e.d && e.d.skill_level != null && e.d.crime && !e.isStep) {  // (all time: the latest level)
@@ -431,6 +445,11 @@ const CA = (() => {
           if (e.action === "Case") { b.cases++; b.caseNerve += e.nerve; } else { add(b, e); take(`${c}|${e.detail}`, e); }
         }
         if (c === DISPOSAL) add(get(how, `${e.detail || e.action}|${e.action}`), e);
+        if (c === FORGERY && e.detail) {  // (each project's steps, for levelling: critical fails and tools lost)
+          const lost = [...items(e.d, ["items_lost"])];
+          (lvlSteps.get(e.detail) || lvlSteps.set(e.detail, []).get(e.detail))
+            .push([e.result === "crit", lost.reduce((s, [i, n]) => s + (price[i] || 0) * n, 0), lost.length, e.action]);
+        }
       } else if (COST_TYPES.has(e.type) && cid) {
         const cost = [...items(e.d, ["items_used", "items_added"])].reduce((s, [i, n]) => s + (price[i] || 0) * n, 0);
         (crimes[cid] ||= blank()).itemCost += cost;
@@ -502,6 +521,7 @@ const CA = (() => {
         const stats = Object.fromEntries([...how].filter(([hk]) => hk.slice(0, hk.lastIndexOf("|")) === kind).map(([hk, t]) => [hk.slice(hk.lastIndexOf("|") + 1), t]));
         Object.assign(row, disposalMethods(kind, stats));
       }
+      if (c === FORGERY) row.level = levelling(lvlSteps.get(kind));
       out.push(row); }
     // Burglary by property type: a burgle's pay over its type's casings, its own nerve and a focused scout (9); the
     // page blends "Any Industrial" from try_nerve with a 3-nerve scout
@@ -633,7 +653,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.2.25";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.2.26";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
   // (Torn PDA can inject a script at the page's start, before there's a body; and once is enough)
@@ -1482,6 +1502,8 @@ else (async function main() {
   let tipEl = null;
   function showTip(host, text) {
     if (tipEl) tipEl.remove();
+    tipEl = null;
+    if (!text) return;
     tipEl = $("div", "ca-tip", text);
     body.appendChild(tipEl);
     const r = host.getBoundingClientRect(), w = Math.min(300, innerWidth - 16);
@@ -1899,6 +1921,35 @@ else (async function main() {
     if (pn >= avg) return pn >= best ? "S" : "A";
     return pn >= avg / 2 ? "B" : "C";
   }
+  // Forgery below skill 100 is graded for levelling, not money (CA's levelling): fewest critical fails per step, a
+  // grade down when it loses tools. Untried: "?".
+  const levelOn = k => { const s = k === "forgery" && values && values.crime_skill ? values.crime_skill[k] : null; return s != null && s < 100; };
+  const LEVEL_TIERS = [[0.015, "S"], [0.03, "A"], [0.06, "B"]], DOWN = { S: "A", A: "B", B: "C", C: "C" }, LOST_STEP = 500, LEVEL_MIN = 20;
+  const levelled = v => !!v.level && v.level.steps >= LEVEL_MIN;
+  // (a tool lost costs a grade: over $500 a step, or a tool with no price yet)
+  const costly = L => L.tools_lost > 0 && (L.lost_per_step >= LOST_STEP || !L.lost_per_step);
+  // Projects two tiers or more under your newest (Level 1 ones at skill 50+): taken to give little XP (unverified; his
+  // logs only show Level 25 at skill 50 levelling about as fast as Level 50 at 60), and their record is from low skill
+  const tooEasy = v => {
+    const s = values && values.crime_skill ? values.crime_skill.forgery : null, at = (UNLOCK_AT.forgery || {})[CA.gkey(v.kind)];
+    return s != null && at != null && at < Math.min(75, Math.floor(s / 25) * 25) - 25;
+  };
+  function levelTier(v) {
+    if (tooEasy(v)) return "C";
+    if (!levelled(v)) return "Q";
+    const t = (LEVEL_TIERS.find(([r]) => v.level.rate <= r) || [0, "C"])[1];
+    return costly(v.level) ? DOWN[t] : t;
+  }
+  const levelScore = v => !levelled(v) || tooEasy(v) ? 1 : v.level.rate + (costly(v.level) ? 0.03 : 0);
+  const levelText = v => tooEasy(v) ? "too easy" : !v.level ? "untried" : !levelled(v) ? "few" : `crit 1/${Math.round(1 / v.level.rate)}`;
+  function levelTip(v, s) {
+    const L = v.level, pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+    if (tooEasy(v)) return `For levelling (you're at skill ${s}): too far under your skill to teach you much; pick a newer project.`;
+    return `For levelling (you're at skill ${s}): ` + (L ? `${pl(L.crits, "critical fail")} in your last ${pl(L.steps, "step")}` +
+      (L.tools_lost ? `, ${pl(L.tools_lost, "tool")} lost${L.lost_per_step ? ` (~${short(L.lost_per_step)} a step)` : ""}` : ", no tools lost") +
+      (L.worst ? `; most on ${L.worst} (${L.worst_n})` : "") : "you haven't tried it, so there's no record of its critical fails yet") +
+      `. A critical fail costs skill.`;
+  }
   const chipText = (v, tier, short100, pct) => short100 ? `${pct}% short` : tier === "G" ? `collect ${short(v.avg_net)}`
     : v.few ? (v.per_nerve != null && v.source === "community" ? `~${short(v.per_nerve)}/n` : "new")
     : recipeOver(v) || v.est || v.source === "guide" ? `~${short(pnOf(v))}/n` : `${short(pnOf(v))}/n`;  // (~: partly or all the guide's)
@@ -2074,7 +2125,7 @@ else (async function main() {
   // Options Torn shows before you can do them: Forgery's picker lists every project, greyed until its level (Torn's own
   // picker, Aaron's screenshots 2026-10-18). Above your skill a project gets its unlock level, not a grade, and stays out
   // of Best here (and isn't marked seen, so it's "Just unlocked" when you get there).
-  const UNLOCK = { forgery: { 25: ["Diploma", "License Plate", "Birth Certificate", "Ordination Certificate"],
+  const UNLOCK = { forgery: { 1: ["Parking Permit", "Driver's License", "Concert Ticket", "Collection Bucket"], 25: ["Diploma", "License Plate", "Birth Certificate", "Ordination Certificate"],
                               50: ["ID Badge", "Skeleton Key", "Prescription", "Travel Visa", "Medical License"],
                               75: ["Police Badge", "Passport", "Bank Check", "ATM Key"] } };
   const UNLOCK_AT = {};
@@ -2083,8 +2134,11 @@ else (async function main() {
     const at = (UNLOCK_AT[k] || {})[CA.gkey(v.kind)], s = values && values.crime_skill && values.crime_skill[k];
     return at && s != null && Math.floor(s) < at ? at : 0;
   };
-  const tapAdvice = b => { b.style.cursor = "help";
-    b.addEventListener("click", e => { if (!matchMedia("(hover: none)").matches) return; e.preventDefault(); e.stopPropagation(); showTip(b, b.title); }); };
+  // (the text is kept apart from the title: on a phone Torn's own tooltip takes over a title and empties it, which
+  // left our tip an empty black bar under Torn's; Aaron's iPhone, 2.2.25. So on a phone there's no title at all.)
+  const tapAdvice = b => { b.style.cursor = "help"; b.dataset.tip = b.title;
+    if (matchMedia("(hover: none)").matches) b.removeAttribute("title");
+    b.addEventListener("click", e => { if (!matchMedia("(hover: none)").matches) return; e.preventDefault(); e.stopPropagation(); showTip(b, b.dataset.tip || b.title); }); };
   function pathChip(root, k) {
     if (k === "cardskimming") return skimPlan(root, k);
     const sk = values.crime_skill && values.crime_skill[k], host = nameEl(root, k);
@@ -2210,12 +2264,12 @@ else (async function main() {
       const collect = k === "arson" && !short100 && /COLLECT/.test(rowText);  // (Torn's COLLECT button on the job)
       // (an accidental-fire job: the recipe just says Lighter and the grade is the job's own; no warning, no second
       // opinion. Aaron, 2026-10-18: "they didn't need the bad advice plus better advice")
-      const noFT = flameBanned(needs, v), tier = tierOf(v, best, short100, false, collect);
+      const lvl = levelOn(k), noFT = flameBanned(needs, v), tier = lvl ? levelTier(v) : tierOf(v, best, short100, false, collect);
       // (Arson only: a fire you can't finish fails; other crimes are a step at a time)
       const need = k !== "arson" || collect || short100 ? null : nerveFor(v), low = !!need && nv != null && need > nv;
       const picker = !!host.closest("button:not(.ca-badge), [class*='dropdown'], [class*='select']");
       // (Disposal's name column is narrow, and Torn's pickers too: "$2.2k" without "/n")
-      const tight = k === "disposal" || picker || phone, text = chipText(v, tier, short100, pct).replace(tight ? /\/n$/ : /^$/, "");
+      const tight = k === "disposal" || picker || phone, text = (lvl ? levelText(v) : chipText(v, tier, short100, pct)).replace(tight ? /\/n$/ : /^$/, "");
       const sig = [tier, star ? 1 : 0, text, needs.join(","), low ? 1 : 0, version].join("|");
       if (had) {
         Object.assign(had.dataset, { best: String(best), nerve: String(nv), v: String(version), star: star ? "1" : "0" });
@@ -2235,6 +2289,7 @@ else (async function main() {
           (recipeOver(v) ? `, by the community recipe: your way lost ${short(-v.per_nerve)}/nerve` : "") +
           (star ? ". Torn shows a unique waiting here now" : "")) +
         (low ? `. Needs ${need} nerve; you have ${nv}` : "");
+      if (!phone && lvl) b.title = `${levelTip(v, Math.floor(values.crime_skill[k]))} Money: ${short(pnOf(v))}/nerve.`;
       b.setAttribute("aria-label", `${raw}: ${TIERWORD[tier]}, ${text}`);
       b.setAttribute("aria-expanded", "false");
       // (the card's title in full, "Sports Arena: Boxing Clever", as Best here lists it: its place where the name has one)
@@ -2272,8 +2327,9 @@ else (async function main() {
       // (glance names: "Cemetery", not "Search the Cemetery")
       return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est,
                tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
-    }).filter(x => !x.v.few && x.tier !== "G" && x.tier !== "L" && x.pn > 0 && x.shown  // (on show: Disposal's
-      && !seenV.has(x.v) && seenV.add(x.v)).sort((a, b) => b.pn - a.pn);                     // hidden history named jobs not on offer)
+    }).filter(x => !x.v.few && x.tier !== "G" && x.tier !== "L" && (x.pn > 0 || levelOn(k)) && x.shown  // (on show: Disposal's
+      && !seenV.has(x.v) && seenV.add(x.v))                                                                 // hidden history named jobs not on offer)
+      .sort((a, b) => levelOn(k) ? levelScore(a.v) - levelScore(b.v) || b.pn - a.pn : b.pn - a.pn);
     noteSeen(k);
   }
   // Options as they first show on their page: one that appears for the first time (unlocked as your skill rose, or a
@@ -2372,10 +2428,14 @@ else (async function main() {
     hd.firstChild.title = TIERWORD[tier];
     pop.append(hd);
     // the letter in words, under the name: "Grade C \u00b7 under half your average"
-    const gw = "SABC".includes(tier) ? `Grade ${tier} \u00b7 ${TIERWORD[tier]}` : TIERWORD[tier][0].toUpperCase() + TIERWORD[tier].slice(1);
+    // (Forgery while levelling: the grade is for levelling; the tip says why, the hero still says what it pays)
+    const lvlCard = v.crime_id === 11 && levelOn("forgery");
+    const gw = lvlCard ? (levelled(v) ? `Grade ${tier} for levelling \u00b7 ${levelText(v)}` : "For levelling: no record of its critical fails yet")
+      : "SABC".includes(tier) ? `Grade ${tier} \u00b7 ${TIERWORD[tier]}` : TIERWORD[tier][0].toUpperCase() + TIERWORD[tier].slice(1);
     const g = $("div", "ca-grade", gw);
-    if (avg && "SABC".includes(tier)) g.title = `Its $/nerve against your average across all crimes (${short(avg)}/nerve). S is also the best on show.`;
-    pop.append(g);
+    if (lvlCard) { hd.firstChild.title = "For levelling"; pop.append(g, $("div", "ca-muted", levelTip(v, Math.floor(values.crime_skill.forgery)))); }
+    else pop.append(g);
+    if (!lvlCard && avg && "SABC".includes(tier)) g.title = `Its $/nerve against your average across all crimes (${short(avg)}/nerve). S is also the best on show.`;
     // the one number
     const hero = $("div", "ca-hero"), big = (n, unit) => hero.append($("span", "ca-n", n), $("span", "ca-u", unit));
     const delta = pn => {
@@ -2452,7 +2512,7 @@ else (async function main() {
       dig.append(d);
     };
     if (v.methods && v.methods.length) sec("Methods", "reliability \u00b7 $/nerve", [methodTable(v)], !pk);
-    if (!v.few && fellShort == null && tier !== "G") sec("SABC".includes(tier) ? `Grade ${tier}` : "Why", "$/nerve vs your average", kv([
+    if (!v.few && fellShort == null && tier !== "G") sec(lvlCard ? "Money" : "SABC".includes(tier) ? `Grade ${tier}` : "Why", "$/nerve vs your average", kv([
       ...(pk ? [[`${VERBS[pk.method]} (best method)`, `${short(pk.ev)}/nerve`]] : []),
       [recipeOver(v) || pk ? "Your way" : "This", v.per_nerve != null ? `${short(v.per_nerve)}/nerve` : null],
       ["Your average, all crimes", avg ? `${short(avg)}/nerve` : null],
@@ -2598,19 +2658,21 @@ else (async function main() {
     // Worth doing here: options at or above your average. None: just the best on show, as one muted row, so the
     // crimes worth doing elsewhere get the room (Aaron, 2026-10-17: on Pickpocketing only waiting for a Cyclist was
     // worth it, and the weak marks on show crowded out the better crimes elsewhere)
-    const avg = src.overall || 0, all = k ? onPage : [], top = all.length ? all[0].pn : 0;
-    const here = all.filter(x => !avg || x.pn >= avg).slice(0, 3), weak = !here.length && all.length ? all[0] : null;
+    const avg = src.overall || 0, all = k ? onPage : [], lvl = !!k && levelOn(k);
+    const top = !all.length ? 0 : lvl ? Math.max(0, ...all.map(x => x.pn)) : all[0].pn;
+    // (Forgery while levelling: the safest projects you've a record on, whatever they pay)
+    const here = (lvl ? all.filter(x => levelled(x.v) && !tooEasy(x.v)) : all.filter(x => !avg || x.pn >= avg)).slice(0, 3), weak = !here.length && all.length && !lvl ? all[0] : null;
     // a crime whose options come and go (pickpocketing's marks): its best of all, with what to do ("wait for Cyclist")
     const reach = x => Math.max(x.per_nerve || 0, (x.ideal && x.ideal.per_nerve) || 0);
     const wait = k && lead[k] && lead[k].ideal && lead[k].ideal.per_nerve > top ? lead[k].ideal : null;
     // elsewhere: what beats the best you can do here now (waiting for a mark is a maybe), and is at your average
     const elsewhere = Object.entries(lead).filter(([t, x]) => t !== k && reach(x) > top && (!avg || reach(x) >= avg))
       .sort((a, b) => reach(b[1]) - reach(a[1])).slice(0, 3);
-    return { src, crimes, avg, here, weak, wait, elsewhere };
+    return { src, crimes, avg, here, weak, wait: lvl ? null : wait, elsewhere, lvl };
   }
   function drawBest(k) {
-    const { src, crimes, avg, here, weak, wait, elsewhere } = plan(k);
-    const sig = JSON.stringify([k, here.map(x => [x.name, x.pn, x.tier, x.est]), weak && [weak.name, weak.pn, weak.tier], wait, elsewhere, avg]);
+    const { src, crimes, avg, here, weak, wait, elsewhere, lvl } = plan(k);
+    const sig = JSON.stringify([k, here.map(x => [x.name, x.pn, x.tier, x.est, x.v.level]), weak && [weak.name, weak.pn, weak.tier], wait, elsewhere, avg, lvl]);
     if (bestBox.dataset.sig === sig) return;
     bestBox.dataset.sig = sig;
     bestBox.replaceChildren();
@@ -2622,13 +2684,14 @@ else (async function main() {
       b.append($("span", `ca-tier ${x.tier}`, TILE[x.tier]), $("span", "ca-name", x.name), $("span", "ca-loc", "\u2316"));
       b.onclick = e => { e.preventDefault(); e.stopPropagation(); flash(x); };
       if (k && isNew(k, x.v)) b.append($("span", "ca-newtag", "new"));  // (just unlocked)
-      li.append(b, $("span", "ca-muted", `${x.est ? "~" : ""}${short(x.pn)}/n`));
+      li.append(b, $("span", "ca-muted", lvl ? levelText(x.v) : `${x.est ? "~" : ""}${short(x.pn)}/n`));
+      if (lvl) li.title = levelTip(x.v, Math.floor(src.crime_skill[k]));
       return li;
     };
     if (here.length) {
       const ul = $("ul", "ca-list");
       for (const x of here) ul.append(findRow(x));
-      const sec = $("div", "ca-sec", "Best here ");
+      const sec = $("div", "ca-sec", lvl ? "Level on here " : "Best here ");
       sec.append($("span", "", "\u00b7 tap to find \u2316"));
       bestBox.append(sec, ul);
     }
@@ -2661,7 +2724,11 @@ else (async function main() {
       }
       bestBox.append($("div", "ca-sec", k ? "Better elsewhere" : "Best by crime"), ul);
     }
-    if (here.length || weak) {  // what the letters mean
+    if (lvl && here.length) {
+      const leg = $("div", "ca-muted ca-legend", "Graded for levelling until skill 100: S fewest critical fails \u00b7 a grade down if it loses tools");
+      leg.title = "A critical fail costs skill, and some lose a tool. From each project's last 200 steps in your logs.";
+      bestBox.append(leg);
+    } else if (here.length || weak) {  // what the letters mean
       const leg = $("div", "ca-muted ca-legend", "S best here \u00b7 A above your avg \u00b7 B half or more \u00b7 C under half");
       leg.title = src.overall ? `Each option's $/nerve against your average across all crimes: ${short(src.overall)}/nerve` : "Each option's $/nerve against your average across all crimes";
       bestBox.append(leg);
@@ -2673,12 +2740,13 @@ else (async function main() {
   // else (muted) the best on show. On the hub: the best crime.
   function glance() {
     btn.classList.toggle("ca-hasupd", updReady());  // (a dot: an update is ready)
-    const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere } = plan(k);
+    const k = tab ? tabKey(tab) : null, { crimes, here, weak, wait, elsewhere, lvl } = plan(k);
     let tier = null, line = "", tip = "", muted = false;
     if (here.length) {
       // (a phone: the place alone, "Sports Arena", not "Sports Arena: Boxing Clever"; the card has the job)
       const x = here[0]; tier = x.tier; line = matchMedia("(max-width:600px)").matches ? x.name.split(": ")[0] : x.name;
-      tip = `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
+      tip = lvl ? `Level on: ${x.name}. ${levelTip(x.v, Math.floor(values.crime_skill[k]))}`
+        : `Best here: ${x.name}, ${x.est ? "~" : ""}${short(x.pn)}/nerve (${TIERWORD[x.tier] || ""})`;
     } else if (wait) {
       line = `\u23f3 ${wait.name}`;  // (the hourglass says wait or scout: "Scout for Foundry" didn't fit beside the chat bar)
       tip = `Nothing here beats your average now: ${wait.verb} ${wait.name} (${short(wait.per_nerve)}/nerve)`;
