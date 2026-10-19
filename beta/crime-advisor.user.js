@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.6
+// @version      2.3.7
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.6";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.7";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "beta";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -2578,15 +2578,16 @@ else (async function main() {
     // the options on show, best first, for Best crimes (Arson's with their place: "Library: Read the Room")
     lastByName = byName;
     const seenV = new Set();
-    onPage = hits.map(([host, v, , raw]) => {
+    const fresh = hits.map(([host, v, , raw]) => {
       // (the chip where it went; the name and whether it's on show from the name's visible spot: on a phone Arson's
       // scenario is hidden, and the list stayed empty, so the box pointed elsewhere)
       const ns = nameSlot(host, k), chip = slotFor(host, k).querySelector(":scope > .ca-chip");
       const place = ns !== host && ownText(ns) ? ownText(ns) : "";
       // (glance names: "Cemetery", not "Search the Cemetery")
-      return { host, v, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est,
+      return { host, v, raw, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est,
                tier: (chip && [...chip.classList].find(c => TILE[c])) || "B", shown: ns.getClientRects().length > 0 };
-    }).filter(x => !x.v.few && x.tier !== "G" && x.tier !== "L" && (x.pn > 0 || levelOn(k)) && x.shown  // (on show: Disposal's
+    });
+    onPage = (k === "arson" ? keepDrawn(k, fresh, byName) : fresh).filter(x => !x.v.few && x.tier !== "G" && x.tier !== "L" && (x.pn > 0 || levelOn(k)) && x.shown  // (on show: Disposal's
       && !seenV.has(x.v) && seenV.add(x.v))                                                                 // hidden history named jobs not on offer)
       .sort((a, b) => levelOn(k) ? levelScore(a.v) - levelScore(b.v) || b.pn - a.pn : b.pn - a.pn);
     noteSeen(k);
@@ -2604,7 +2605,8 @@ else (async function main() {
     for (const x of onPage) { const key = CA.gkey(x.v.kind); if (!(key in rec)) { rec[key] = mine ? Date.now() : 0; changed = true; } }
     if (changed) set("optsSeen", { ...all, [k]: rec });
   }
-  const isNew = (k, v) => { const at = ((get("optsSeen", {})[k]) || {})[CA.gkey(v.kind)]; return at > 0 && Date.now() - at < NEW_DAYS * 86400000; };
+  // (not Arson: its jobs change every day, so "new" said nothing there)
+  const isNew = (k, v) => { if (k === "arson") return false; const at = ((get("optsSeen", {})[k]) || {})[CA.gkey(v.kind)]; return at > 0 && Date.now() - at < NEW_DAYS * 86400000; };
   // Disposal: a reliability dot on each method's icon, and a green ring on the one to use. The icons are found by their
   // labels ("Abandon", "Bury"...); if Torn's labels don't say, nothing is drawn (the card still has it all).
   const VERB = { Abandoning: /abandon|leave/i, Burying: /bury/i, Burning: /burn/i, Sinking: /sink/i, Dissolving: /dissolv/i };
@@ -2891,8 +2893,55 @@ else (async function main() {
 
   // ---- Best crimes (top of the panel): the best options here, then crimes whose best beats this page's. One here
   // scrolls to its option and flashes it; one elsewhere links to its page (one page per click, yours).
-  function flash(x) {
-    if (!x.host.isConnected) return;
+  // Arson's list on a phone only keeps the rows near the screen: the far end drops out and is drawn again on scroll
+  // (Aaron's iPhone, 2026-10-19: the best job left Best here). Rows seen this visit are kept while they sit beyond either
+  // end of what's drawn; one missing from between drawn rows was collected or is gone, and is dropped.
+  var kept = { tab: null, order: [], rows: new Map() };  // (var: the tab watcher can reset it before this line runs)
+  function keepDrawn(k, fresh, byName) {
+    if (kept.tab !== k) kept = { tab: k, order: [], rows: new Map() };
+    const now = new Set(fresh.map(x => x.name));
+    // (the page reordered what's drawn: follow it, keeping the undrawn rows at the end they were nearest)
+    const was = kept.order.filter(n => now.has(n)), names = fresh.map(x => x.name);
+    if (was.length && was.join("\n") !== names.filter(n => was.includes(n)).join("\n")) {
+      const first = kept.order.indexOf(was[0]);
+      kept.order = [...kept.order.filter((n, i) => !now.has(n) && i < first), ...names, ...kept.order.filter((n, i) => !now.has(n) && i > first)];
+    }
+    let prev = -1;
+    for (const x of fresh) {  // (the page's order: a new name goes in after the one drawn before it)
+      let i = kept.order.indexOf(x.name);
+      if (i < 0) { i = prev + 1; kept.order.splice(i, 0, x.name); }
+      prev = i;
+      kept.rows.set(x.name, x);
+    }
+    const drawn = kept.order.map((n, i) => now.has(n) ? i : -1).filter(i => i >= 0);
+    if (!drawn.length) return fresh;
+    const lo = Math.min(...drawn), hi = Math.max(...drawn), gone = [];
+    kept.order.forEach((n, i) => {
+      if (now.has(n)) return;
+      const x = kept.rows.get(n);
+      if (!x || (i > lo && i < hi)) { gone.push(n); return; }
+      const nv = byName.get(String(x.raw).toLowerCase());  // (today's numbers, if they were recomputed)
+      if (nv) { x.v = nv; x.pn = pnOf(nv); }
+      x.shown = true; x.end = i < lo ? "top" : "bottom";
+    });
+    for (const n of gone) { kept.rows.delete(n); kept.order.splice(kept.order.indexOf(n), 1); }
+    return kept.order.map(n => kept.rows.get(n)).filter(Boolean);
+  }
+  // a row the page dropped: found again by its name once it's drawn, scrolling toward its end of the list until it is
+  function redrawn(x) {
+    const w = document.createTreeWalker(crimeRoot(), NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.trim() === x.raw && !n.parentElement.closest(OURS)) return n.parentElement;
+    return null;
+  }
+  function flash(x, tries = 0) {
+    if (!x.host.isConnected) {
+      const again = x.raw ? redrawn(x) : null;
+      if (again) x.host = again;
+      else {
+        if (tries < 8) { scrollBy({ top: (x.end === "top" ? -1 : 1) * innerHeight * 0.7, behavior: "smooth" }); setTimeout(() => flash(x, tries + 1), 650); }
+        return;
+      }
+    }
     // (the row you can see: on a phone the name's own section can be hidden)
     let { row } = requirements(x.host, lastByName);
     if (!row.getClientRects().length) row = x.host.closest(".crime-option, [class*='virtualItem']") || row;
@@ -3050,7 +3099,7 @@ else (async function main() {
   function look() {
     looking = null;
     const t = current();
-    if (t !== tab) { tab = t; since = Date.now(); onPage = []; closePop(); }
+    if (t !== tab) { tab = t; since = Date.now(); onPage = []; kept.tab = null; closePop(); }
     const root = crimeRoot(), k = tabKey(tab);
     if (tab) {
       // (Torn can keep the title's element from one crime to the next: the last crime's badges go)
