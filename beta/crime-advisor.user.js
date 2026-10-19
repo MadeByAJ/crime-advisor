@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.4
+// @version      2.3.5
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.4";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.5";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "beta";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -1129,6 +1129,9 @@ else (async function main() {
       .ca-panel{left:0;right:0;bottom:var(--ca-bottom,0px);width:auto;max-height:calc(88vh - var(--ca-bottom,0px));border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
       .ca-btn{bottom:calc(12px + var(--ca-btn-lift,0px) + env(safe-area-inset-bottom,0px));max-width:var(--ca-room,calc(100vw - 24px))}
       .ca-btn{padding:6px 10px 7px}.ca-btn .ca-ba{font-size:12px;gap:5px}
+      html.ca-open .ca-panel{bottom:var(--ca-panel-bottom,var(--ca-bottom,0px));max-height:calc(88vh - var(--ca-panel-bottom,0px));padding-bottom:12px}
+      html.ca-open .ca-btn{border-top-color:#1a1a19;border-radius:0 0 12px 12px;box-shadow:0 8px 16px rgba(0,0,0,.5)}
+      html.ca-open .ca-btn .ca-bt::after{content:" \\25BE";letter-spacing:0}
       .ca-panel .ca-seg button{padding:6px 12px}.ca-bars li{min-height:30px}
       /* chips are the grade alone, beside the name (Torn's rows are one line high: a chip on a line of its own pushed
          the name and the risk bar out of view; with numbers, long names wrapped them; Aaron's iPhone) */
@@ -1245,7 +1248,21 @@ else (async function main() {
   btn.append($("span", "ca-bt", "Crime Advisor"));
   btn.type = "button";
   if (onCrimes) body.appendChild(btn);
-  btn.onclick = () => { if (panel) { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); } else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); } };
+  btn.onclick = () => { if (panel) closePanel(); else { setTimeout(() => { clearAt = 0; bottomClear(); }, 0); panel = $("div", "ca-panel"); body.appendChild(panel); renderPanel(); dock(); } };
+  function closePanel() {
+    if (!panel) return;
+    panel.remove(); panel = null;
+    if (pop && pop.classList.contains("ca-inpanel")) closePop();
+    dock();
+  }
+  // On a phone the open panel sits on the button, which becomes its tab ("Crime Advisor \u25be"): tap it to fold the
+  // panel away (Aaron, 2026-10-19: the button sat half under the panel)
+  function dock() {
+    const de = document.documentElement, open = !!panel && matchMedia("(max-width:600px)").matches;
+    de.classList.toggle("ca-open", open);
+    if (open) de.style.setProperty("--ca-panel-bottom", `${Math.max(0, Math.round(innerHeight - btn.getBoundingClientRect().top))}px`);
+    btn.setAttribute("aria-expanded", String(!!panel));
+  }
   setInterval(async () => {  // while the panel is open: another tab's progress shows up here too
     if (!panel) return;
     const typing = panel.querySelector("input");
@@ -1268,7 +1285,7 @@ else (async function main() {
     const key = get("key", ""), avg = (values && values.overall) || 0;
     const h = $("div", "ca-ph"), x = $("button", "ca-x", "\u2715");
     x.type = "button"; x.setAttribute("aria-label", "Close");
-    x.onclick = () => { panel.remove(); panel = null; if (pop && pop.classList.contains("ca-inpanel")) closePop(); };
+    x.onclick = () => closePanel();
     if (view !== "advice") {  // (a way back besides the icon again: Aaron, 2026-10-19)
       const back = $("button", "ca-ic ca-back", "\u2039");
       back.type = "button"; back.title = "Back"; back.setAttribute("aria-label", "Back to advice");
@@ -3113,6 +3130,7 @@ else (async function main() {
     de.setProperty("--ca-btn-lift", beside ? "0px" : `${Math.round(Math.min(h, innerHeight * 0.3))}px`);
     if (beside) de.setProperty("--ca-room", `${room}px`); else de.removeProperty("--ca-room");
     barSeen = h ? `${Math.round(h)} px high, from x ${Math.round(left)}${leftAt ? ` (${leftAt})` : ""}${beside ? ", button beside it" : ", button above it"}` : "none";
+    requestAnimationFrame(dock);  // (the open panel follows the button, its tab)
   }
   var barSeen = "not measured";  // (var: the panel can ask before this line has run)
   addEventListener("resize", () => { clearAt = 0; bottomClear(); });
