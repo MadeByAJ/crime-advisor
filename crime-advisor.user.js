@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.8
+// @version      2.3.9
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.8";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.9";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -2719,9 +2719,24 @@ else (async function main() {
     }
     // Arson: the recipe is what you act on, so it's on the card (Place / Ignite / Stoke), not behind "More"
     const c = v.community;
-    const steps = c && c.steps ? c.steps.map(([s, t]) => [s, (noFT || !ftOK()) && /^(Ignite|Stoke)$/.test(s) ? t.replace(/flamethrower/ig, "Lighter")
+    // (below skill 80 there's no Flamethrower: a Lighter fire runs cooler, so on a job with a damage target say so; a
+    // player at 49% on "More than 51% damage" with the recipe's 2 Gasoline and a Lighter, 2026-10-19. An accidental
+    // job's Lighter is the right tool, nothing to add.)
+    const lowFT = !noFT && !ftOK();
+    const steps = c && c.steps ? c.steps.map(([s, t]) => [s, (noFT || !ftOK()) && /^(Ignite|Stoke)$/.test(s) && /flamethrower/i.test(t)
+      ? t.replace(/flamethrower/ig, "Lighter") + (lowFT && s === "Ignite" ? " (Flamethrower from skill 80; the fire runs cooler, so stoke to reach the target)" : "")
       : wantFT && s === "Ignite" ? "Flamethrower" : t]) : [];
     if (wantFT && steps.length && !steps.some(([s]) => s === "Ignite")) steps.splice(1, 0, ["Ignite", "Flamethrower"]);
+    // the job's damage target as the last step: the recipe is the same for every instance, the requirement isn't
+    const dmg = needs.map(n => {
+      let m;
+      if (/total destruction/i.test(n)) return "100% damage: stoke until it's all gone";
+      if ((m = n.match(/between\s+(\d+)%\s+and\s+(\d+)%/i))) return `${m[1]}-${m[2]}% damage: stoke if it's short, dampen before ${m[2]}%`;
+      if ((m = n.match(/more than\s+(\d+)%/i))) return `over ${m[1]}% damage: stoke if it stalls short`;
+      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: dampen before it gets there`;
+      return null;
+    }).find(Boolean);
+    if (dmg && steps.length) steps.push(["Target", dmg]);
     if (steps.length) {  // the recipe as steps, in the order you do them (Aaron: "make that more visually useful")
       const box = $("div", "ca-recipe"), hd = $("div", "ca-rhd", "Recipe ");
       hd.append($("span", "", "\u00b7 the community's"));
