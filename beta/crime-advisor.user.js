@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.5
+// @version      2.3.6
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -715,7 +715,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.5";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.6";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "beta";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -2741,10 +2741,9 @@ else (async function main() {
     if (suspicious && !ftOK()) pill("", "Suspicious: Gasoline or Magnesium", `A highly suspicious fire wants fuels that raise suspicion. The Flamethrower does it best, from Arson skill ${FT_SKILL}`);
     if (pk) {
       pill("go", `${VERBS[pk.method]} \u00b7 ${pk.p == null ? "?" : pc(pk.p)} \u00b7 ${Math.round(pk.nerve)} nerve`, "The method with the best expected $/nerve here (from the guide's figures, updated by your results)");
-      if (v.count && v.per_nerve < pk.ev) pill("bad", `Your way: ${short(v.per_nerve)}/n`, `Your ${v.count} ${v.unit} here, the ways you did them`);
     }
     if (low) pill("warn", `\u26a1 Needs ${need} \u00b7 you have ${nv}`, "Nerve to finish the job, by the recipe (else your own average)");
-    if (recipeOver(v)) pill("bad", `Your way: ${short(v.per_nerve)}/n`, `Your ${v.count} ${v.unit} lost money; the community recipe pays ~${short(v.community.per_nerve)}/nerve`);
+    // (no red "Your way" pill: your own figure is in the card's Grade section; Aaron, 2026-10-19: "we dont really need that")
     needs.forEach(n => pill("warn", n, "Torn says this job needs it"));
     if (star) pill("gold", "\u2605 Unique on offer now", "Torn shows a one-time unique outcome waiting here. It pays once, so it's left out of $/nerve.");
     for (const s of (o && o.seasonal) || []) pill("gold", `${s.event || "Event"}: ${s.item}`, `Drops here only around ${s.event || "its event"} (found ${s.found}\u00d7): left out of $/nerve the rest of the year`);
