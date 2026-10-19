@@ -146,7 +146,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey &middot; Torn PDA</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.3.7</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.3.8</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -245,11 +245,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 3223 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 3256 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.7
+// @version      2.3.8
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -963,7 +963,7 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.7";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.8";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -2835,7 +2835,7 @@ else (async function main() {
       return { host, v, raw, name: place ? `${place}: ${raw}` : raw.replace(/^Search (the )?/i, ""), pn: pnOf(v), est: recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est,
                tier: (chip &amp;&amp; [...chip.classList].find(c =&gt; TILE[c])) || "B", shown: ns.getClientRects().length &gt; 0 };
     });
-    onPage = (k === "arson" ? keepDrawn(k, fresh, byName) : fresh).filter(x =&gt; !x.v.few &amp;&amp; x.tier !== "G" &amp;&amp; x.tier !== "L" &amp;&amp; (x.pn &gt; 0 || levelOn(k)) &amp;&amp; x.shown  // (on show: Disposal's
+    onPage = (DAILY[k] ? keepDrawn(k, fresh, byName) : fresh).filter(x =&gt; !x.v.few &amp;&amp; x.tier !== "G" &amp;&amp; x.tier !== "L" &amp;&amp; (x.pn &gt; 0 || levelOn(k)) &amp;&amp; x.shown  // (on show: Disposal's
       &amp;&amp; !seenV.has(x.v) &amp;&amp; seenV.add(x.v))                                                                 // hidden history named jobs not on offer)
       .sort((a, b) =&gt; levelOn(k) ? levelScore(a.v) - levelScore(b.v) || b.pn - a.pn : b.pn - a.pn);
     noteSeen(k);
@@ -3144,36 +3144,62 @@ else (async function main() {
   // Arson's list on a phone only keeps the rows near the screen: the far end drops out and is drawn again on scroll
   // (Aaron's iPhone, 2026-10-19: the best job left Best here). Rows seen this visit are kept while they sit beyond either
   // end of what's drawn; one missing from between drawn rows was collected or is gone, and is dropped.
-  var kept = { tab: null, order: [], rows: new Map() };  // (var: the tab watcher can reset it before this line runs)
+  // Crimes whose options hold until a daily refresh: what a page showed today is remembered across reloads and other
+  // pages until 00:00 TCT (Aaron, 2026-10-19). Disposal's jobs spawn at 00:00 TCT (the Torn wiki, Emforus); Arson's and
+  // Cracking's change daily, at a time no source gives, so they're only said to be remembered until then.
+  const DAILY = { disposal: "New jobs at 00:00 TCT", arson: "Remembered until 00:00 TCT", cracking: "Remembered until 00:00 TCT" };
+  const tctDay = () =&gt; Math.floor(Date.now() / 86400000);
+  const estOf = v =&gt; recipeOver(v) || v.source === "community" || v.source === "guide" || !!v.est;
+  var kept = { tab: null, day: 0, order: [], rows: new Map(), saved: "" };  // (var: the tab watcher can reset it before this line runs)
   function keepDrawn(k, fresh, byName) {
-    if (kept.tab !== k) kept = { tab: k, order: [], rows: new Map() };
-    const now = new Set(fresh.map(x =&gt; x.name));
+    const day = tctDay();
+    if (kept.tab !== k || kept.day !== day) {
+      kept = { tab: k, day, order: [], rows: new Map(), saved: "" };
+      const saved = get("pageKnown", {})[k];
+      if (saved &amp;&amp; saved.day === day) for (const [name, raw] of saved.rows || []) {
+        const v = byName.get(String(raw).toLowerCase());
+        if (!v || kept.rows.has(name)) continue;
+        kept.order.push(name);
+        kept.rows.set(name, { host: document.createElement("span"), v, raw, name, pn: pnOf(v), est: estOf(v), tier: null, shown: true });
+      }
+      kept.saved = kept.order.join("\n");
+    }
+    // (only rows on show: Disposal's page also names past jobs in a hidden history)
+    const vis = fresh.filter(x =&gt; x.shown), now = new Set(vis.map(x =&gt; x.name)), names = vis.map(x =&gt; x.name);
     // (the page reordered what's drawn: follow it, keeping the undrawn rows at the end they were nearest)
-    const was = kept.order.filter(n =&gt; now.has(n)), names = fresh.map(x =&gt; x.name);
+    const was = kept.order.filter(n =&gt; now.has(n));
     if (was.length &amp;&amp; was.join("\n") !== names.filter(n =&gt; was.includes(n)).join("\n")) {
       const first = kept.order.indexOf(was[0]);
       kept.order = [...kept.order.filter((n, i) =&gt; !now.has(n) &amp;&amp; i &lt; first), ...names, ...kept.order.filter((n, i) =&gt; !now.has(n) &amp;&amp; i &gt; first)];
     }
     let prev = -1;
-    for (const x of fresh) {  // (the page's order: a new name goes in after the one drawn before it)
+    for (const x of vis) {  // (the page's order: a new name goes in after the one drawn before it)
       let i = kept.order.indexOf(x.name);
       if (i &lt; 0) { i = prev + 1; kept.order.splice(i, 0, x.name); }
       prev = i;
       kept.rows.set(x.name, x);
     }
     const drawn = kept.order.map((n, i) =&gt; now.has(n) ? i : -1).filter(i =&gt; i &gt;= 0);
-    if (!drawn.length) return fresh;
-    const lo = Math.min(...drawn), hi = Math.max(...drawn), gone = [];
+    const lo = drawn.length ? Math.min(...drawn) : Infinity, hi = drawn.length ? Math.max(...drawn) : -Infinity, gone = [];
     kept.order.forEach((n, i) =&gt; {
       if (now.has(n)) return;
       const x = kept.rows.get(n);
-      if (!x || (i &gt; lo &amp;&amp; i &lt; hi)) { gone.push(n); return; }
+      if (!x || (i &gt; lo &amp;&amp; i &lt; hi)) { gone.push(n); return; }  // (missing from between drawn rows: collected or gone)
       const nv = byName.get(String(x.raw).toLowerCase());  // (today's numbers, if they were recomputed)
-      if (nv) { x.v = nv; x.pn = pnOf(nv); }
-      x.shown = true; x.end = i &lt; lo ? "top" : "bottom";
+      if (nv) { x.v = nv; x.pn = pnOf(nv); x.est = estOf(nv); }
+      x.shown = true; x.end = i &lt; lo ? "top" : "bottom"; x.tier = null;
     });
     for (const n of gone) { kept.rows.delete(n); kept.order.splice(kept.order.indexOf(n), 1); }
-    return kept.order.map(n =&gt; kept.rows.get(n)).filter(Boolean);
+    const list = kept.order.map(n =&gt; kept.rows.get(n)).filter(Boolean);
+    // a row not drawn has no chip to read its grade from: graded from its numbers, as a chip would be
+    const best = Math.max(-Infinity, ...list.filter(x =&gt; !x.v.few &amp;&amp; x.v.per_nerve != null).map(x =&gt; x.pn));
+    for (const x of list) if (!now.has(x.name)) x.tier = tierOf(x.v, best, false, false, false);
+    const sig = kept.order.join("\n");
+    if (sig !== kept.saved) {
+      kept.saved = sig;
+      set("pageKnown", { ...get("pageKnown", {}), [k]: { day, rows: kept.order.map(n =&gt; [n, kept.rows.get(n).raw]) } });
+    }
+    return [...list, ...fresh.filter(x =&gt; !x.shown)];
   }
   // a row the page dropped: found again by its name once it's drawn, scrolling toward its end of the list until it is
   function redrawn(x) {
@@ -3234,7 +3260,7 @@ else (async function main() {
   }
   function drawBest(k) {
     const { src, crimes, avg, here, weak, wait, elsewhere, lvl } = plan(k);
-    const sig = JSON.stringify([k, here.map(x =&gt; [x.name, x.pn, x.tier, x.est, x.v.level]), weak &amp;&amp; [weak.name, weak.pn, weak.tier], wait, elsewhere, avg, lvl]);
+    const sig = JSON.stringify([k, here.map(x =&gt; [x.name, x.pn, x.tier, x.est, x.v.level]), weak &amp;&amp; [weak.name, weak.pn, weak.tier], wait, elsewhere, avg, lvl, k &amp;&amp; DAILY[k] ? Math.floor(Date.now() / 60000) : 0]);
     if (bestBox.dataset.sig === sig) return;
     bestBox.dataset.sig = sig;
     bestBox.replaceChildren();
@@ -3256,6 +3282,13 @@ else (async function main() {
       const sec = $("div", "ca-sec", lvl ? "Level on here " : "Best here ");
       sec.append($("span", "", "\u00b7 tap to find \u2316"));
       bestBox.append(sec, ul);
+      if (k &amp;&amp; DAILY[k]) {  // (what's known about when this crime's options change)
+        const left = 86400000 - Date.now() % 86400000, h = Math.floor(left / 3600000), m = Math.floor(left % 3600000 / 60000);
+        const note = $("div", "ca-muted ca-legend", `${DAILY[k]} (in ${h}h ${m}m)`);
+        note.title = k === "disposal" ? "Disposal's jobs spawn at 00:00 TCT. Jobs seen today are kept through reloads until then."
+          : "This crime's options change daily. What its page showed today is kept through reloads until 00:00 TCT; the exact time they change isn't published.";
+        bestBox.append(note);
+      }
     }
     if (wait || weak) {
       const ul = $("ul", "ca-list");
