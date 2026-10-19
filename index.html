@@ -116,6 +116,7 @@ ol.steps>li>div{display:grid;gap:6px;padding-top:4px;min-width:0}
 .bar .v{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 .g{background:#2fbf71}.bl{background:#2a78d6}.au{background:#a8842e}.sk{color:#9cc8ff}.uq{color:#e3b341}
 .foot{border-top:1px solid #2c2c2a;padding-top:6px;margin-top:4px;display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#8f8e86}
+.ph .ic{font-size:14px;line-height:1;opacity:.85}
 .foot .ok{color:#9ff0c2}.foot a{color:#9cc8ff}
 .hub{display:flex;flex-wrap:wrap;gap:8px}
 .hubcard{font:700 15px var(--display);letter-spacing:.02em;text-transform:uppercase;background:#2c2c2a;color:#e8e8e4;border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:8px}
@@ -142,7 +143,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">Torn userscript &middot; Tampermonkey</div>
+    <div class="eyebrow">Torn userscript &middot; Tampermonkey &middot; Torn PDA</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
     <div class="meta"><span>v2.3.5</span><span>Read-only</span><span>Your data stays in your browser</span></div>
@@ -175,7 +176,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <div style="display:grid;gap:12px">
           <div class="label">The panel (bottom-left button)</div>
           <div class="panel" aria-label="Example: the Crime Advisor panel">
-            <div class="ph"><b>Crime Advisor</b><span class="avg"><i></i>your avg $3.2k/n</span></div>
+            <div class="ph"><b>Crime Advisor</b><span class="avg"><i></i>your avg $3.2k/n</span><span class="ic" title="Stats">&#128202;</span><span class="ic" title="Settings">&#9881;</span></div>
             <div class="sec">Best here <span>&middot; tap to find &#8982;</span></div>
             <div class="li"><span class="n">Sally's Sweet Shop</span><span class="m">$9.6k/n</span></div>
             <div class="sec">Better elsewhere</div>
@@ -228,7 +229,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <tr><th scope="row">Lighter</th><td>History loads about twice as fast and backs off when Torn says too many requests. Slower computers refresh the numbers less often while it loads. Only one tab loads at a time, and a reload no longer interrupts it.</td></tr>
       </table>
     </div>
-    <p class="note">Upgrading from 1.x? Make the new key in step 3 and paste it in in <b>Settings &#9881; &rsaquo; Key &rsaquo; Change</b>. Your logs are then read once more in the background while Torn is open.</p>
+    <p class="note">Upgrading from 1.x? Make the new key in step 3 and paste it in <b>Settings &#9881; &rsaquo; Key &rsaquo; Change</b>. Your logs are then read once more in the background while Torn is open.</p>
   </section>
 
   <section aria-labelledby="install">
@@ -3437,12 +3438,12 @@ else (async function main() {
         <p>Your newest logs load first, so grades appear within seconds. Older logs then load in the background: about 10,000 logs in 3 minutes, using up to 40 of Torn's 100 calls a minute. If Torn says too many requests, it slows right down for 10 minutes. The panel shows how far it has got, and it carries on next time you open Torn.</p>
       </div></li>
     </ol>
-    <p class="note">On Torn PDA: open the install link in PDA's own browser and press <b>Install</b>. In PDA's script settings you can give it your Crime Advisor key with <b>Set API Key</b>, so there's nothing to paste.</p>
+    <p class="note">On Torn PDA: in PDA's userscript settings, add a script by remote URL: <code>https://tornbrain.com/crime-advisor.user.js</code>, press <b>Fetch</b>, then <b>Load</b>. PDA warns that the script uses an API key: press <b>Load</b> again to use PDA's own key, or <b>Set API Key</b> to give it your Crime Advisor key. Either way there's nothing to paste.</p>
   </section>
 
   <section aria-labelledby="community">
     <h2 id="community">Community numbers (opt-in)</h2>
-    <p>Off unless you turn it on, in the panel's footer. Then each card can show what players at your skill earn there.</p>
+    <p>Off unless you turn it on in <b>Settings &#9881;</b>. Then each card can show what players at your skill earn there.</p>
     <div class="table-scroll">
       <table class="facts">
         <tr><th scope="row">What's shared</th><td>Per crime option: your tries (rounded down), success rate, $/nerve and skill band. No logs, no times. Once your whole history has loaded, at most daily.</td></tr>
@@ -3462,12 +3463,12 @@ else (async function main() {
     <h2 id="data">Your key and your data</h2>
     <div class="table-scroll">
       <table class="facts">
-        <tr><th scope="row">Data storage</th><td>Only in your browser. Crime logs go into the browser's own storage (IndexedDB), so they aren't downloaded twice. Tampermonkey keeps your settings and key.</td></tr>
+        <tr><th scope="row">Data storage</th><td>Only in your browser. Crime logs go into the browser's own storage (IndexedDB), so they aren't downloaded twice. Tampermonkey (or Torn PDA) keeps your settings and key.</td></tr>
         <tr><th scope="row">Data sharing</th><td>None, unless you turn on <a href="#community">Community numbers</a> (off by default): then coarse per-option summaries go to <code>api.tornbrain.com</code>.</td></tr>
         <tr><th scope="row">Purpose of use</th><td>Personal: your own $/nerve per crime.</td></tr>
         <tr><th scope="row">Key storage &amp; sharing</th><td>Stored in Tampermonkey on this browser (in Torn PDA: on your phone). Sent to <code>api.torn.com</code>; if you join Community numbers, once to <code>api.tornbrain.com</code>, which doesn't keep it.</td></tr>
         <tr><th scope="row">Key access level</th><td>Custom: <code>log</code>, plus <code>items</code> from the Torn section for market prices.</td></tr>
-        <tr><th scope="row">Update notices</th><td>Off unless you turn them on in the panel. Then every 6 hours (and once after an update) it asks <code>api.tornbrain.com</code> for the latest version number. Nothing about you is sent; the server keeps only how many checks came in each day.</td></tr>
+        <tr><th scope="row">Update notices</th><td>Off unless you turn them on in <b>Settings &#9881;</b>. Then every 6 hours (and once after an update) it asks <code>api.tornbrain.com</code> for the latest version number. Nothing about you is sent; the server keeps only how many checks came in each day.</td></tr>
         <tr><th scope="row">Other downloads</th><td>Public arson recipes from <code>balaclava.app</code> (the Arsonist's Ledger), once a day. No key is sent with it.</td></tr>
       </table>
     </div>
@@ -3478,6 +3479,7 @@ else (async function main() {
     <h2 id="update">Updating</h2>
     <p>It updates itself: Tampermonkey checks this site for a new version about once a day (or straight away with <b>Check for userscript updates</b> in its menu). Your key and the logs you've already downloaded are kept.</p>
     <p class="note">Pasted it in by hand before this page existed? Press <b>Install Crime Advisor</b> above once: Tampermonkey offers it as an update to your existing copy, keeping your key and logs, and it updates itself from then on.</p>
+    <p class="note">On Torn PDA, turn on <b>Tell me when there's an update</b> in <b>Settings &#9881;</b>: when one is out, its <b>Install</b> link loads the new version over your copy. If you add it by its URL again instead, delete the old copy so only one runs.</p>
   </section>
 
   <section aria-labelledby="help">
@@ -3491,6 +3493,7 @@ else (async function main() {
       <div><dt>"logs are re-read each visit"</dt><dd>The browser is blocking storage, usually because it's a private window. It still works, but only on your most recent ~2,000 logs.</dd></div>
       <div><dt>A number looks wrong</dt><dd>Prices are today's market values, so old materials and rewards are re-priced. Crimes that pay on a later step than the nerve (Card Skimming, for one) are valued as a whole crime. Hover a row in the panel for all time, 30 days and nerve.</dd></div>
       <div><dt>Start over</dt><dd>Panel &rsaquo; <b>Settings &#9881; &rsaquo; Key &rsaquo; Change</b> &rsaquo; <b>Remove key and stored logs</b>. Deleting the key on Torn stops it working everywhere.</dd></div>
+      <div><dt>Reporting a bug</dt><dd>Panel &rsaquo; <b>Settings &#9881; &rsaquo; About this browser &rsaquo; Copy for a bug report</b>, then send it to AJTheSecond [3395781] with what you saw. Nothing personal is in it.</dd></div>
     </dl>
   </section>
 

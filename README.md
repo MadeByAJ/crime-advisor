@@ -14,7 +14,7 @@ Read-only: it never clicks, commits a crime or does anything in Torn for you.
    **[Make a key](https://www.torn.com/preferences.php#tab=api?step=addNewKey&title=Crime%20Advisor&user=log&torn=items)**
 4. On any Crimes page, click **Crime Advisor** in the bottom-left, paste the key and press **Save**.
 
-**Torn PDA:** open the install link in PDA's own browser and press Install. In PDA's script settings, **Set API Key** gives it your Crime Advisor key, so there's nothing to paste.
+**Torn PDA:** in PDA's userscript settings, add a script by remote URL: `https://tornbrain.com/crime-advisor.user.js`, press **Fetch**, then **Load**. PDA warns that the script uses an API key: press **Load** again to use PDA's own key, or **Set API Key** to give it your Crime Advisor key. Either way there's nothing to paste.
 
 Your newest logs load first, so grades appear within seconds. Older logs load in the background: about 10,000 logs in 3 minutes, using up to 40 of Torn's 100 calls a minute. It carries on next time you open Torn, and only one tab loads at a time.
 
@@ -43,7 +43,9 @@ Your newest logs load first, so grades appear within seconds. Older logs load in
 | Level up | Crimes with skill under 100 |
 | Uniques | Skill 100, with uniques left to find |
 | Done | The rest |
-| Footer | Logs stored, sync status, your key, and "Open automatically on crime pages" |
+| 📊 Stats | Crime income per day (today, 7 and 30 days, all time, the last 30 days as bars) and your skills' progress |
+| ⚙ Settings | Your key, the skill badge (always, until skill 100, or off), Open automatically (desktop), Community numbers, update notices, and a bug report to copy |
+| Footer | Logs stored and sync status |
 
 **The Crimes hub** shows how many uniques each crime has left.
 
@@ -71,11 +73,11 @@ Numbers are net: materials you used are subtracted, and item rewards are counted
 | Update notices (2.2.14) | Opt in to an "Update ready" note in the panel |
 | Lighter | Faster loading, backs off when Torn is busy, gentler on slow computers, and a reload no longer interrupts it |
 
-**Upgrading from 1.x:** make the new key (step 3) and paste it in in **Settings ⚙ › Key › Change**. Your logs are read once more in the background.
+**Upgrading from 1.x:** make the new key (step 3) and paste it in **Settings ⚙ › Key › Change**. Your logs are read once more in the background.
 
 ## Community numbers (opt-in)
 
-Off unless you turn it on in the panel's footer. Then each card can show what players at your skill earn there.
+Off unless you turn it on in **Settings ⚙**. Then each card can show what players at your skill earn there.
 
 | | |
 |---|---|
@@ -88,12 +90,12 @@ Off unless you turn it on in the panel's footer. Then each card can show what pl
 
 | | |
 |---|---|
-| Data storage | Only in your browser. Crime logs go into the browser's own storage (IndexedDB); Tampermonkey keeps your settings and key. |
+| Data storage | Only in your browser. Crime logs go into the browser's own storage (IndexedDB); Tampermonkey (or Torn PDA) keeps your settings and key. |
 | Data sharing | None, unless you turn on Community numbers (off by default): then coarse per-option summaries go to `api.tornbrain.com`. |
 | Purpose of use | Personal: your own $/nerve per crime. |
 | Key storage & sharing | Stored in Tampermonkey on this browser (in Torn PDA: on your phone). Sent to `api.torn.com`; if you join Community numbers, once to `api.tornbrain.com`, which doesn't keep it. |
 | Key access level | Custom: `log`, plus `items` (Torn section) for market prices. |
-| Update notices | Off unless you turn them on in the panel. Then every 6 hours (and once after an update) it asks `api.tornbrain.com` for the latest version number. Nothing about you is sent; the server keeps only a daily count of checks. |
+| Update notices | Off unless you turn them on in **Settings ⚙**. Then every 6 hours (and once after an update) it asks `api.tornbrain.com` for the latest version number. Nothing about you is sent; the server keeps only a daily count of checks. |
 | Other downloads | Public arson recipes from `balaclava.app` (the Arsonist's Ledger), once a day. No key is sent with it. |
 
 Each browser keeps its own copy, so a second computer downloads your history again.
@@ -101,6 +103,8 @@ Each browser keeps its own copy, so a second computer downloads your history aga
 ## Updating
 
 It updates itself: Tampermonkey checks tornbrain.com for a new version about once a day. Your key and downloaded logs are kept. If you pasted it in by hand, install it once from the link above: Tampermonkey offers it as an update to your copy and it updates itself from then on.
+
+**Torn PDA:** turn on **Tell me when there's an update** in **Settings ⚙**: when one is out, its **Install** link loads the new version over your copy. If you add it by its URL again instead, delete the old copy so only one runs.
 
 ## If something's off
 
@@ -114,6 +118,7 @@ It updates itself: Tampermonkey checks tornbrain.com for a new version about onc
 | "logs are re-read each visit" | A private window is blocking storage. It works from your latest ~2,000 logs only. |
 | A number looks wrong | Prices are today's, so old items are re-priced. Hover a panel row for all time, 30 days and nerve. |
 | Start over | Panel › **Settings ⚙ › Key › Change** › **Remove key and stored logs**. |
+| Reporting a bug | Panel › **Settings ⚙ › About this browser › Copy for a bug report**, and send it to AJTheSecond [3395781] with what you saw. Nothing personal is in it. |
 
 ---
 
