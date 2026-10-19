@@ -146,7 +146,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey &middot; Torn PDA</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.3.9</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.3.10</span><span>Read-only</span><span>Your data stays in your browser</span></div>
   </header>
 
   <section aria-labelledby="look">
@@ -245,11 +245,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 3271 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 3274 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.9
+// @version      2.3.10
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -298,6 +298,8 @@ const CA = (() =&gt; {
   const ARSON = 13, SCAMMING = 12, FORGERY = 11, DISPOSAL = 9, BURGLARY = 7;
   // Burglary: the nerve to scout for a property type of your choice, or for any of a kind (TornBrain's crimes.py)
   const SCOUT_FOCUSED = 9, SCOUT_ANY = 3;
+  // (a lit fire is decided within minutes and a failed one is never logged: lit and not collected in 36 h, failed; as crimes.py)
+  const LIT_FAIL = 36 * 3600;
   const ARSON_EXPIRE = 7 * DAY, SCAM_EXPIRE = DAY, SCAM_LOST_AFTER = 3600, MIN_NERVE = 30;
   const NAMES = { 1: "Search for Cash", 2: "Bootlegging", 3: "Graffiti", 4: "Shoplifting", 5: "Pickpocketing", 6: "Card Skimming",
                   7: "Burglary", 8: "Hustling", 9: "Disposal", 10: "Cracking", 11: "Forgery", 12: "Scamming", 13: "Arson" };
@@ -385,6 +387,7 @@ const CA = (() =&gt; {
     const jobs = [], open = new Map(), stepAt = new Map();
     for (const e of events) if (e.crime === ARSON &amp;&amp; e.isStep &amp;&amp; e.detail) (stepAt.get(e.ts) || stepAt.set(e.ts, []).get(e.ts)).push([e.detail, e.action, e.ts]);
     const close = (j, state, ts) =&gt; { j.state = state; j.closed = ts; open.delete(j.job); };
+    const stale = (j, t) =&gt; t - j.last &gt; ARSON_EXPIRE || (j.lit &amp;&amp; t - j.ignited &gt; LIT_FAIL);
     for (const e of events) {
       if (e.crime !== ARSON) continue;
       if (COST_TYPES.has(e.type)) {
@@ -409,7 +412,7 @@ const CA = (() =&gt; {
       if (!job) continue;
       const starts = e.type === 9360 || e.action === "Make entry";
       let j = open.get(job);
-      if (j &amp;&amp; (e.ts - j.last &gt; ARSON_EXPIRE || (starts &amp;&amp; j.worked))) { close(j, "expired", j.last); j = null; }
+      if (j &amp;&amp; (stale(j, e.ts) || (starts &amp;&amp; j.worked))) { close(j, "expired", j.last); j = null; }
       if (!j) {
         j = { job, opened: e.ts, last: e.ts, closed: null, state: "open", nerve: 0, steps: 0, money: 0, itemCost: 0, worked: false,
               lit: false, ignited: null, stokes: 0, stokeTs: [], dampens: 0, place: {}, stokeFuel: {}, evidence: {}, unique: false };
@@ -426,7 +429,7 @@ const CA = (() =&gt; {
         if (e.action === "Collect" &amp;&amp; e.result === "success") close(j, "paid", e.ts);
       }
     }
-    for (const j of [...open.values()]) if (now - j.last &gt; ARSON_EXPIRE) close(j, "expired", j.last);
+    for (const j of [...open.values()]) if (stale(j, now)) close(j, "expired", j.last);
     for (const j of jobs) if (j.state === "expired" &amp;&amp; !j.steps) j.state = "skipped";
     return jobs;
   }
@@ -963,7 +966,7 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.9";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.10";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";

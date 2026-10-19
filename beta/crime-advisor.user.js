@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.9
+// @version      2.3.10
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -50,6 +50,8 @@ const CA = (() => {
   const ARSON = 13, SCAMMING = 12, FORGERY = 11, DISPOSAL = 9, BURGLARY = 7;
   // Burglary: the nerve to scout for a property type of your choice, or for any of a kind (TornBrain's crimes.py)
   const SCOUT_FOCUSED = 9, SCOUT_ANY = 3;
+  // (a lit fire is decided within minutes and a failed one is never logged: lit and not collected in 36 h, failed; as crimes.py)
+  const LIT_FAIL = 36 * 3600;
   const ARSON_EXPIRE = 7 * DAY, SCAM_EXPIRE = DAY, SCAM_LOST_AFTER = 3600, MIN_NERVE = 30;
   const NAMES = { 1: "Search for Cash", 2: "Bootlegging", 3: "Graffiti", 4: "Shoplifting", 5: "Pickpocketing", 6: "Card Skimming",
                   7: "Burglary", 8: "Hustling", 9: "Disposal", 10: "Cracking", 11: "Forgery", 12: "Scamming", 13: "Arson" };
@@ -137,6 +139,7 @@ const CA = (() => {
     const jobs = [], open = new Map(), stepAt = new Map();
     for (const e of events) if (e.crime === ARSON && e.isStep && e.detail) (stepAt.get(e.ts) || stepAt.set(e.ts, []).get(e.ts)).push([e.detail, e.action, e.ts]);
     const close = (j, state, ts) => { j.state = state; j.closed = ts; open.delete(j.job); };
+    const stale = (j, t) => t - j.last > ARSON_EXPIRE || (j.lit && t - j.ignited > LIT_FAIL);
     for (const e of events) {
       if (e.crime !== ARSON) continue;
       if (COST_TYPES.has(e.type)) {
@@ -161,7 +164,7 @@ const CA = (() => {
       if (!job) continue;
       const starts = e.type === 9360 || e.action === "Make entry";
       let j = open.get(job);
-      if (j && (e.ts - j.last > ARSON_EXPIRE || (starts && j.worked))) { close(j, "expired", j.last); j = null; }
+      if (j && (stale(j, e.ts) || (starts && j.worked))) { close(j, "expired", j.last); j = null; }
       if (!j) {
         j = { job, opened: e.ts, last: e.ts, closed: null, state: "open", nerve: 0, steps: 0, money: 0, itemCost: 0, worked: false,
               lit: false, ignited: null, stokes: 0, stokeTs: [], dampens: 0, place: {}, stokeFuel: {}, evidence: {}, unique: false };
@@ -178,7 +181,7 @@ const CA = (() => {
         if (e.action === "Collect" && e.result === "success") close(j, "paid", e.ts);
       }
     }
-    for (const j of [...open.values()]) if (now - j.last > ARSON_EXPIRE) close(j, "expired", j.last);
+    for (const j of [...open.values()]) if (stale(j, now)) close(j, "expired", j.last);
     for (const j of jobs) if (j.state === "expired" && !j.steps) j.state = "skipped";
     return jobs;
   }
@@ -715,7 +718,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.9";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.3.10";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "beta";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
