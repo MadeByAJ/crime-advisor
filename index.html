@@ -149,7 +149,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey &middot; Torn PDA</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.4.0</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.4.1</span><span>Read-only</span><span>Your data stays in your browser</span></div>
     <p class="forum"><a href="https://www.torn.com/forums.php#/p=threads&amp;f=67&amp;t=16612693&amp;b=0&amp;a=0" target="_blank" rel="noopener"><b>Finding it useful? Like the thread on Torn's forums</b><span>A like or a comment keeps it in view for other players &#8599;</span></a></p>
   </header>
 
@@ -225,7 +225,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <tr><th scope="row">Torn PDA (2.1)</th><td>Works in the Torn PDA app. On a phone each chip is just its grade, and a small box beside Torn's chat bar shows the one thing to do now.</td></tr>
         <tr><th scope="row">Community numbers (2.2)</th><td>Opt in to see what players at your skill earn per option. Off by default; see <a href="#community">how it works</a>.</td></tr>
         <tr><th scope="row">Options you haven't tried (2.2.20)</th><td>Get a starting estimate from Emforus's Crime Profitability Index (marked ~), so they can be graded and show up in Best crimes. Your own tries take over as they add up. A newly unlocked option is marked <b>Just unlocked</b>.</td></tr>
-        <tr><th scope="row">Arson recipe check (2.4)</th><td>Each arson card's <b>More</b> shows how your jobs went against the community recipe: followed, more or less fuel, fewer stokes, or dampened, and how many failed. A warning shows when the recipe keeps failing for you or another way pays more. The Ledger's "optional" stokes now say <b>don't skip it</b> (skipping one failed about 1 in 5), and dampening is no longer advised: a low damage target gets a slower fuel instead.</td></tr>
+        <tr><th scope="row">Arson recipe check (2.4)</th><td>Each arson card's <b>More</b> shows how your jobs went against the community recipe: followed, more or less fuel, fewer stokes, or dampened, and how many failed. A warning shows when the recipe keeps failing for you or another way pays more. The Ledger's "optional" stokes now say <b>don't skip it</b> (skipping one failed about 1 in 5), and a low damage target gets a slow fuel like Diesel.</td></tr>
         <tr><th scope="row">Disposal and Arson (2.2.27)</th><td>Disposal rings the method with the best expected $/nerve: the Crime Profitability Index's figure until your own record takes over. A &#9733; marks where the job's one-time unique is. Arson recipes are numbered steps, fitted to the job and to your skill (the Flamethrower only from 80).</td></tr>
         <tr><th scope="row">Forgery levelling (2.2.26)</th><td>Below skill 100, Forgery projects are graded for levelling: the fewest critical fails per step, a grade lower if one loses tools. Projects you haven't unlocked show their level instead of a grade.</td></tr>
         <tr><th scope="row">Uniques to find (2.3)</th><td>Tap a crime's gold &#9733; count for the uniques you haven't found yet and what each needs (cameras off, a key item, a skill level). A place's card lists its own. From the Torn wiki and Emforus's guides, checked against your logs.</td></tr>
@@ -254,7 +254,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.4.0
+// @version      2.4.1
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -1039,7 +1039,7 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.4.0";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.4.1";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -3062,7 +3062,7 @@ else (async function main() {
       if (/total destruction/i.test(n)) return "100% damage: stoke until it's all gone";
       if ((m = n.match(/between\s+(\d+)%\s+and\s+(\d+)%/i))) return `${m[1]}-${m[2]}% damage: stoke if it's short; no extra fuel, so it stops by ${m[2]}%`;
       if ((m = n.match(/more than\s+(\d+)%/i))) return `over ${m[1]}% damage: stoke if it stalls short`;
-      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: one slow fuel (a Diesel, not Gasoline then a dampen), no stoke`;
+      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: use a slow fuel like Diesel`;
       return null;
     }).find(Boolean);
     if (dmg &amp;&amp; steps.length) steps.push(["Target", dmg]);

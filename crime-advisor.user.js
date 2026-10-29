@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.4.0
+// @version      2.4.1
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -786,7 +786,7 @@ const CA = (() => {
 if (typeof module !== "undefined" && module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.4.0";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.4.1";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -2809,7 +2809,7 @@ else (async function main() {
       if (/total destruction/i.test(n)) return "100% damage: stoke until it's all gone";
       if ((m = n.match(/between\s+(\d+)%\s+and\s+(\d+)%/i))) return `${m[1]}-${m[2]}% damage: stoke if it's short; no extra fuel, so it stops by ${m[2]}%`;
       if ((m = n.match(/more than\s+(\d+)%/i))) return `over ${m[1]}% damage: stoke if it stalls short`;
-      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: one slow fuel (a Diesel, not Gasoline then a dampen), no stoke`;
+      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: use a slow fuel like Diesel`;
       return null;
     }).find(Boolean);
     if (dmg && steps.length) steps.push(["Target", dmg]);
