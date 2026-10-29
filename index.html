@@ -149,7 +149,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <div class="eyebrow">Torn userscript &middot; Tampermonkey &middot; Torn PDA</div>
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
-    <div class="meta"><span>v2.3.10</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <div class="meta"><span>v2.4.0</span><span>Read-only</span><span>Your data stays in your browser</span></div>
     <p class="forum"><a href="https://www.torn.com/forums.php#/p=threads&amp;f=67&amp;t=16612693&amp;b=0&amp;a=0" target="_blank" rel="noopener"><b>Finding it useful? Like the thread on Torn's forums</b><span>A like or a comment keeps it in view for other players &#8599;</span></a></p>
   </header>
 
@@ -225,6 +225,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <tr><th scope="row">Torn PDA (2.1)</th><td>Works in the Torn PDA app. On a phone each chip is just its grade, and a small box beside Torn's chat bar shows the one thing to do now.</td></tr>
         <tr><th scope="row">Community numbers (2.2)</th><td>Opt in to see what players at your skill earn per option. Off by default; see <a href="#community">how it works</a>.</td></tr>
         <tr><th scope="row">Options you haven't tried (2.2.20)</th><td>Get a starting estimate from Emforus's Crime Profitability Index (marked ~), so they can be graded and show up in Best crimes. Your own tries take over as they add up. A newly unlocked option is marked <b>Just unlocked</b>.</td></tr>
+        <tr><th scope="row">Arson recipe check (2.4)</th><td>Each arson card's <b>More</b> shows how your jobs went against the community recipe: followed, more or less fuel, fewer stokes, or dampened, and how many failed. A warning shows when the recipe keeps failing for you or another way pays more. The Ledger's "optional" stokes now say <b>don't skip it</b> (skipping one failed about 1 in 5), and dampening is no longer advised: a low damage target gets a slower fuel instead.</td></tr>
         <tr><th scope="row">Disposal and Arson (2.2.27)</th><td>Disposal rings the method with the best expected $/nerve: the Crime Profitability Index's figure until your own record takes over. A &#9733; marks where the job's one-time unique is. Arson recipes are numbered steps, fitted to the job and to your skill (the Flamethrower only from 80).</td></tr>
         <tr><th scope="row">Forgery levelling (2.2.26)</th><td>Below skill 100, Forgery projects are graded for levelling: the fewest critical fails per step, a grade lower if one loses tools. Projects you haven't unlocked show their level instead of a grade.</td></tr>
         <tr><th scope="row">Uniques to find (2.3)</th><td>Tap a crime's gold &#9733; count for the uniques you haven't found yet and what each needs (cameras off, a key item, a skill level). A place's card lists its own. From the Torn wiki and Emforus's guides, checked against your logs.</td></tr>
@@ -249,11 +250,11 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
         <p>Tampermonkey opens its install page: press <b>Install</b>. Installed this way it keeps itself up to date.</p>
         <p class="note">If the button only shows the code, copy it from the box below instead: in Tampermonkey choose <b>Create a new script</b>, select everything in the editor, paste over it, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
         <div class="script">
-          <div class="script-bar"><span>crime-advisor.user.js &middot; 3274 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
+          <div class="script-bar"><span>crime-advisor.user.js &middot; 3355 lines</span><span id="copy-note" aria-live="polite"></span><button class="btn" id="copy" type="button">Copy script</button></div>
           <textarea id="src" readonly spellcheck="false" aria-label="Crime Advisor script">// ==UserScript==
 // @name         Crime Advisor ($/nerve)
 // @namespace    ajthesecond.crime-advisor
-// @version      2.3.10
+// @version      2.4.0
 // @description  Grades every option on Torn's crime pages by your own $/nerve (S/A/B/C), with a card per option (odds, top items, arson recipes, disposal method) and your best crimes. Private by default: your data stays in your browser.
 // @author       AJTheSecond [3395781]
 // @homepageURL  https://tornbrain.com/
@@ -479,18 +480,28 @@ const CA = (() =&gt; {
   const TOOLS = new Set(["flamethrower", "lighter", "blanket", "sand", "extinguisher"]);  // kept after use: no cost
   const refName = id =&gt; REF_NAMES[id] || id.replace(/_/g, " ").replace(/\b\w/g, c =&gt; c.toUpperCase());
   const jobTitle = job =&gt; (job.match(/^.* \((.*)\)$/) || [, job])[1];
+  // one step of a recipe as [[resource, qty, optional]], an item listed twice added up ("3 Gasoline + Thermite + 2 Gasoline")
+  function refSteps(a, k) {
+    const out = new Map();
+    for (const x of a[k] || []) {
+      const cur = out.get(x.resourceId), q = x.qty || 1, o = !!x.optional;
+      if (cur) { cur[1] += q; cur[2] = cur[2] &amp;&amp; o; } else out.set(x.resourceId, [x.resourceId, q, o]);
+    }
+    return [...out.values()];
+  }
   function community(r, priceByName) {
     if (!r) return null;
-    const a = r.actions || {}, step = k =&gt; (a[k] || []).map(x =&gt; [x.resourceId, x.qty || 1, !!x.optional]);
-    const [ev, place, ign, stoke, damp] = ["evidence", "place", "ignite", "stoke", "dampen"].map(step);
+    const a = r.actions || {};
+    const [ev, place, ign, stoke] = ["evidence", "place", "ignite", "stoke"].map(k =&gt; refSteps(a, k));
     const fmt = xs =&gt; xs.map(([i, q]) =&gt; q &gt; 1 ? `${q} ${refName(i)}` : refName(i)).join(" + ");
     const steps = [];
     if (ev.length) steps.push(["Evidence", fmt(ev)]);
     if (place.length) steps.push(["Place", fmt(place)]);
     if (ign.length) steps.push(["Ignite", fmt(ign)]);
-    if (stoke.length) steps.push(["Stoke", fmt(stoke) + (a.stokeTime ? ` (${a.stokeTime})` : "") + (stoke.every(x =&gt; x[2]) ? " if needed" : "")]);
-    if (damp.length) steps.push(["Dampen", fmt(damp)]);
-    const needed = [...ev, ...place, ...stoke, ...damp].filter(x =&gt; !x[2]);
+    // (the Ledger's "optional" stokes aren't: skipped, 13 of 68 of our jobs failed; stoked, 1 of 44)
+    if (stoke.length) steps.push(["Stoke", fmt(stoke) + (a.stokeTime ? ` (${a.stokeTime})` : "") + (stoke.every(x =&gt; x[2]) ? ", don't skip it" : "")]);
+    // No dampening: it's a fire set too hot, costs nerve and usually fails anyway. A low target wants a slower fuel.
+    const needed = [...ev, ...place, ...stoke];
     const nerve = 10 + 5 * needed.reduce((s, x) =&gt; s + x[1], 0);  // breach 3 + ignite 5 + collect 2, and 5 per other step
     const cost = needed.filter(x =&gt; !TOOLS.has(x[0])).reduce((s, [i, q]) =&gt; s + (priceByName[refName(i)] || 0) * q, 0);
     const lo = r.payoutMin || 0, hi = r.payoutMax || 0;
@@ -555,6 +566,62 @@ const CA = (() =&gt; {
     return `${best} (${n} of ${t.paid} payouts)` + (t.last &amp;&amp; t.last !== best ? `; last time: ${t.last}` : "");
   }
   const median = xs =&gt; { const s = xs.slice().sort((a, b) =&gt; a - b), m = s.length &gt;&gt; 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  // ---- the recipe check: did following the community recipe work? (where the recipes need updating) ----
+  // How a job was run: dampened first (a fire that needed it was set too hot), then short of the recipe's fuel or
+  // evidence, fewer stokes than it says ("optional" ones too), more or other fuel, or followed.
+  function adherence(j, r, names) {
+    if (!r) return null;
+    const a = r.actions || {}, lc = s =&gt; (s || "").toLowerCase();
+    if (j.dampens) return "dampened";
+    const placed = {};
+    for (const [i, n] of Object.entries(j.place)) placed[lc(names[i])] = (placed[lc(names[i])] || 0) + n;
+    const want = Object.fromEntries(refSteps(a, "place").filter(([i]) =&gt; !TOOLS.has(i)).map(([i, q]) =&gt; [lc(refName(i)), q]));
+    const planted = new Set(Object.keys(j.evidence).map(i =&gt; lc(names[i])));
+    if (Object.entries(want).some(([k, q]) =&gt; (placed[k] || 0) &lt; q) ||
+        refSteps(a, "evidence").some(([i, , o]) =&gt; !o &amp;&amp; !planted.has(lc(refName(i))))) return "less fuel";
+    if (j.stokes &lt; refSteps(a, "stoke").reduce((s, x) =&gt; s + x[1], 0)) return "stoked less";
+    if (Object.keys(placed).some(k =&gt; placed[k] &gt; (want[k] || 0))) return "more fuel";
+    return "followed";
+  }
+  // per job title with a recipe: lit jobs (uniques out) that paid or failed, by how they were run, and a flag
+  function recipeCheck(jobs, ref, names) {
+    const out = {};
+    for (const j of jobs) {
+      if (!j.lit || j.unique || (j.state !== "paid" &amp;&amp; j.state !== "expired")) continue;
+      const title = jobTitle(j.job), how = adherence(j, ref[title], names);
+      if (!how) continue;
+      const c = out[title] ||= { title, min: ref[title].payoutMin, max: ref[title].payoutMax, how: {}, last: 0 };
+      const g = c.how[how] ||= { n: 0, failed: 0, nerve: 0, net: 0, payouts: [] };
+      g.n++; g.failed += j.state === "expired"; g.nerve += j.nerve; g.net += j.money - j.itemCost;
+      if (j.state === "paid") g.payouts.push(j.money);
+      c.last = Math.max(c.last, j.closed || j.last);
+    }
+    for (const c of Object.values(out)) {
+      for (const g of Object.values(c.how)) {
+        g.per_nerve = g.nerve ? Math.round(g.net / g.nerve) : null;
+        g.median = g.payouts.length ? median(g.payouts) : null;
+        delete g.payouts;
+      }
+      c.flag = checkFlag(c);
+    }
+    return out;
+  }
+  function checkFlag(c) {
+    const f = c.how.followed, rate = g =&gt; g.failed / g.n, m = x =&gt; Math.round(x).toLocaleString("en-US");
+    if (f &amp;&amp; f.n &gt;= 3 &amp;&amp; rate(f) &gt;= 0.25) return `the recipe failed ${f.failed} of ${f.n}`;
+    if (f &amp;&amp; f.median &amp;&amp; c.min &amp;&amp; c.min !== c.max &amp;&amp; f.n - f.failed &gt;= 3 &amp;&amp; f.median &lt; 0.9 * c.min)
+      return `the recipe pays $${m(f.median)}, under its $${m(c.min)}-${m(c.max)}`;
+    if (f &amp;&amp; f.n &gt;= 3 &amp;&amp; f.per_nerve != null)
+      for (const how of ["more fuel", "less fuel", "stoked less"]) {
+        const g = c.how[how];
+        if (g &amp;&amp; g.n &gt;= 3 &amp;&amp; rate(g) &lt;= rate(f) &amp;&amp; f.per_nerve &gt; 0 &amp;&amp; (g.per_nerve || 0) &gt;= 1.15 * f.per_nerve)
+          return `${how} paid more: $${m(g.per_nerve)}/nerve vs the recipe's $${m(f.per_nerve)} (${g.n} jobs)`;
+      }
+    const d = c.how.dampened;
+    if (d &amp;&amp; d.n &gt;= 2) return `dampened ${d.n} times: the fire was set too hot`;
+    return null;
+  }
 
   // ---- disposal: which method for which job ----
   // A job pays about the same whichever way it's disposed of, but each method costs fixed nerve and some fail more
@@ -739,6 +806,7 @@ const CA = (() =&gt; {
     const finish = t =&gt; { t.net = t.money + t.itemValue - t.itemCost; t.per_nerve = ahead(t.net, t.nerve, t); return t; };
     // arson's unique outcomes come on the collect: the whole job is left out of its $/nerve, not just the collect
     const allJobs = arsonJobs(events, price, now, names), arson = new Map(), tend = new Map();
+    const checks = recipeCheck(allJobs, ref, names);  // (all time, like the record)
     for (const j of allJobs) if (j.unique &amp;&amp; (j.closed || j.last) &gt;= since &amp;&amp; crimes[ARSON]) {
       const t = crimes[ARSON]; t.uniques++; t.uniqueNerve += j.nerve; t.uniqueNet += j.money - j.itemCost;
     }
@@ -784,6 +852,7 @@ const CA = (() =&gt; {
                  uniques: a.uniques, uniqueNerve: a.uniqueNerve, uniqueNet: a.uniqueNet,
                  tend: tendHint(t), recipe: topRecipe(t), record: t ? record(t.jobs.slice(-RECORD_JOBS), names) : null,
                  community: community(r, priceByName),
+                 check: checks[jobTitle(a.job)] || null,
                  your_share: r &amp;&amp; r.payoutMax &amp;&amp; recent.length ? Math.round(100 * median(recent) / r.payoutMax) / 100 : null });
     }
     for (const m of methods.values()) if (m.conversations)
@@ -970,7 +1039,7 @@ const CA = (() =&gt; {
 if (typeof module !== "undefined" &amp;&amp; module.exports) module.exports = CA;  // for tests (node)
 else (async function main() {
   "use strict";
-  const CA_VERSION = "2.3.10";  // (kept in step with @version: Torn PDA doesn't report a script's version)
+  const CA_VERSION = "2.4.0";  // (kept in step with @version: Torn PDA doesn't report a script's version)
   const CA_CHANNEL = "public";  // (publishing sets "beta" in the beta copy)
   const url = new URL(location.href);
   const onCrimes = url.searchParams.get("sid") === "crimes";
@@ -2016,7 +2085,8 @@ else (async function main() {
   // ---------------- community numbers (opt-in): what players like you earn, from tornbrain.com ----------------
   // Off unless you turn it on. Joining sends your key once to tornbrain.com, which asks Torn whose it is, keeps a
   // scrambled id (so you count once) and drops the key. What's shared, once your whole history is in and at most
-  // daily: per crime option, your tries (rounded down), success rate, $/nerve and skill band. No logs. A number shows
+  // daily: per crime option, your tries (rounded down), success rate, $/nerve and skill band; per arson job, how many
+  // jobs followed the community recipe (or not) and how many failed. No logs. A number shows
   // only when 5 or more players are behind it. Turning it off deletes everything about you there.
   const COMMUNITY = "https://api.tornbrain.com", KIND_OK = /^[A-Za-z0-9 '&amp;().,:/+\-]{1,60}$/;
   const commState = () =&gt; get("community", {});  // { token, at: last shared, err }
@@ -2048,8 +2118,12 @@ else (async function main() {
       .slice(0, 400).map(k =&gt; ({ c: k.crime_id, k: k.kind, n: k.count, p: Math.round(k.per_nerve),
         s: k.outcomes &amp;&amp; Number.isFinite(k.outcomes.success) ? k.outcomes.success : null,
         b: bandOf(skill[CA.slug(CA.NAMES[k.crime_id] || "")]) }));
+    // arson: per job title, how jobs were run against the community recipe and how many failed (counts only), so the
+    // recipes that fail for everyone show up
+    const recipes = summary.all.kinds.filter(k =&gt; k.crime_id === 13 &amp;&amp; k.check &amp;&amp; KIND_OK.test(k.check.title)).slice(0, 300)
+      .map(k =&gt; ({ t: k.check.title, h: Object.fromEntries(Object.entries(k.check.how).map(([h, g]) =&gt; [h, [g.n, g.failed]])) }));
     try {
-      await commCall("POST", "/v1/contribute", { v: 1, rows });
+      await commCall("POST", "/v1/contribute", { v: 2, rows, recipes });
       set("community", { ...commState(), at: Date.now(), err: "" });
       await commFetch(true);
     } catch (e) {
@@ -2088,7 +2162,7 @@ else (async function main() {
     w.append(lab);
     if (commAsk &amp;&amp; !on) {
       const box = $("div", "ca-commask");
-      box.append($("div", "", "Shared with tornbrain.com, per crime option: your tries (rounded down), success rate, $/nerve and skill band. No logs."),
+      box.append($("div", "", "Shared with tornbrain.com, per crime option: your tries (rounded down), success rate, $/nerve and skill band; per arson job, how many of your jobs followed the community recipe and how many failed. No logs."),
         $("div", "", "Your key goes there once so it can ask Torn who you are; it keeps a scrambled id and drops the key."),
         $("div", "", "Numbers show once 5 or more players share. Turn this off any time: everything about you is deleted."));
       const go = $("button", "ca-pbtn", "Join"), no = $("button", "ca-link", "Not now");
@@ -2986,9 +3060,9 @@ else (async function main() {
     const dmg = needs.map(n =&gt; {
       let m;
       if (/total destruction/i.test(n)) return "100% damage: stoke until it's all gone";
-      if ((m = n.match(/between\s+(\d+)%\s+and\s+(\d+)%/i))) return `${m[1]}-${m[2]}% damage: stoke if it's short, dampen before ${m[2]}%`;
+      if ((m = n.match(/between\s+(\d+)%\s+and\s+(\d+)%/i))) return `${m[1]}-${m[2]}% damage: stoke if it's short; no extra fuel, so it stops by ${m[2]}%`;
       if ((m = n.match(/more than\s+(\d+)%/i))) return `over ${m[1]}% damage: stoke if it stalls short`;
-      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: dampen before it gets there`;
+      if ((m = n.match(/less than\s+(\d+)%/i))) return `under ${m[1]}% damage: one slow fuel (a Diesel, not Gasoline then a dampen), no stoke`;
       return null;
     }).find(Boolean);
     if (dmg &amp;&amp; steps.length) steps.push(["Target", dmg]);
@@ -3020,6 +3094,8 @@ else (async function main() {
     if (star) pill("gold", "\u2605 Unique on offer now", "Torn shows a one-time unique outcome waiting here. It pays once, so it's left out of $/nerve.");
     for (const s of (o &amp;&amp; o.seasonal) || []) pill("gold", `${s.event || "Event"}: ${s.item}`, `Drops here only around ${s.event || "its event"} (found ${s.found}\u00d7): left out of $/nerve the rest of the year`);
     if (c &amp;&amp; c.min) pill("", `pays ${short(c.min)}\u2013${short(c.max)}`, "What the community recipe pays");
+    const chk = v.check;
+    if (chk &amp;&amp; chk.flag) pill("warn", `\u26a0 ${chk.flag}`, "Your record against the community recipe (More: Recipe check)");
     if (o &amp;&amp; o.tries) pill("", `${o.tries.toLocaleString()} tries`, o.tries &lt; ENOUGH ? `The odds show after ${ENOUGH} tries` : "Your tries here, from your logs");
     const more = $("button", "ca-dig-btn", "More \u25be"), dig = $("div", "ca-dig");
     more.type = "button";
@@ -3079,6 +3155,12 @@ else (async function main() {
         ["Stoked", stoked], ["Evidence", items(rec.evidence, rec.paid)], ["Dampened", rec.dampened ? of(rec.dampened) : ""]], "ca-kvl"), false,
         "From your logs. The Lighter and Flamethrower are never logged as used, so how a job was lit isn't known, and a stoke with nothing logged was done with one of them.");
     } else if (v.recipe || v.tend) sec("Your record", "", kv([["Recipe", v.recipe], ["Tending", v.tend]], "ca-kvl"));
+    if (chk) {  // every lit job against the recipe: did following it work, and did another way do better?
+      const f = chk.how.followed;
+      sec("Recipe check", f ? `followed ${f.n}\u00d7 \u00b7 failed ${f.failed}` : "never followed", kv(Object.entries(chk.how).map(([h, g]) =&gt;
+        [h[0].toUpperCase() + h.slice(1), `${g.n} job${g.n === 1 ? "" : "s"} \u00b7 ${g.failed ? `${g.failed} failed` : "none failed"}${g.per_nerve != null ? ` \u00b7 ${short(g.per_nerve)}/nerve` : ""}`])),
+        false, "Your lit jobs, all time, by how they were run against the community recipe. Dampened: the fire was set too hot.");
+    }
     if (v.count) sec("History", `${v.count.toLocaleString()} ${v.unit}`, kv([["Each, on average", v.avg_net ? short(v.avg_net) : null],
       ["Paid out", v.win_rate != null ? `${pc(v.win_rate)} of targets` : null],
       ["Share of its top pay", v.your_share != null ? pc(v.your_share) : null]]));
@@ -3549,7 +3631,7 @@ else (async function main() {
     <p>Off unless you turn it on in <b>Settings &#9881;</b>. Then each card can show what players at your skill earn there.</p>
     <div class="table-scroll">
       <table class="facts">
-        <tr><th scope="row">What's shared</th><td>Per crime option: your tries (rounded down), success rate, $/nerve and skill band. No logs, no times. Once your whole history has loaded, at most daily.</td></tr>
+        <tr><th scope="row">What's shared</th><td>Per crime option: your tries (rounded down), success rate, $/nerve and skill band. Per arson job: how many of your jobs followed the community recipe, ran another way, or failed (counts only). No logs, no times. Once your whole history has loaded, at most daily.</td></tr>
         <tr><th scope="row">Your key</th><td>Sent once to <code>api.tornbrain.com</code>, which asks Torn whose it is, keeps a scrambled id so you count once, and drops the key.</td></tr>
         <tr><th scope="row">What you see</th><td>A number only when 5 or more players are behind it.</td></tr>
         <tr><th scope="row">Leaving</th><td>Untick it: everything about you there is deleted.</td></tr>
@@ -3567,7 +3649,7 @@ else (async function main() {
     <div class="table-scroll">
       <table class="facts">
         <tr><th scope="row">Data storage</th><td>Only in your browser. Crime logs go into the browser's own storage (IndexedDB), so they aren't downloaded twice. Tampermonkey (or Torn PDA) keeps your settings and key.</td></tr>
-        <tr><th scope="row">Data sharing</th><td>None, unless you turn on <a href="#community">Community numbers</a> (off by default): then coarse per-option summaries go to <code>api.tornbrain.com</code>.</td></tr>
+        <tr><th scope="row">Data sharing</th><td>None, unless you turn on <a href="#community">Community numbers</a> (off by default): then coarse per-option summaries, and per arson job how often the recipe worked, go to <code>api.tornbrain.com</code>.</td></tr>
         <tr><th scope="row">Purpose of use</th><td>Personal: your own $/nerve per crime.</td></tr>
         <tr><th scope="row">Key storage &amp; sharing</th><td>Stored in Tampermonkey on this browser (in Torn PDA: on your phone). Sent to <code>api.torn.com</code>; if you join Community numbers, once to <code>api.tornbrain.com</code>, which doesn't keep it.</td></tr>
         <tr><th scope="row">Key access level</th><td>Custom: <code>log</code>, plus <code>items</code> from the Torn section for market prices.</td></tr>
