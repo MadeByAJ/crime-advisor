@@ -11,13 +11,13 @@
 <meta property="og:description" content="Your own $/nerve for every crime, arson job, scam and disposal method, right on Torn's crime pages. Read-only; your data stays in your browser.">
 <meta name="theme-color" content="#1a1a19">
 <!-- Visits: GoatCounter (no cookies, no personal data): page views, unique visitors, where they came from, and
-     clicks on Install, Make a key and outside links. The userscript itself sends nothing. -->
+     clicks on Install, Make a key, the forum thread and outside links. The userscript itself sends nothing. -->
 <script data-goatcounter="https://ajthesecond.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 <script>
 document.addEventListener("click", function (e) {
   var a = e.target.closest && e.target.closest("a[href]");
   if (!a || !window.goatcounter || !window.goatcounter.count) return;
-  var h = a.getAttribute("href"), what = /crime-advisor\.user\.js$/.test(h) ? "install" : /addNewKey/.test(h) ? "make-key"
+  var h = a.getAttribute("href"), what = /crime-advisor\.user\.js$/.test(h) ? "install" : /addNewKey/.test(h) ? "make-key" : /forums\.php/.test(h) ? "forum"
     : a.host && a.host !== location.host ? "out/" + a.host : null;
   if (what) window.goatcounter.count({ path: "click/" + what, title: a.textContent.trim().slice(0, 60), event: true });
 });
@@ -64,6 +64,9 @@ section{display:grid;gap:16px}
 header{display:grid;gap:14px}
 header .lede{font-size:19px;color:var(--ink-2)}
 .meta{display:flex;flex-wrap:wrap;gap:8px 18px;font:13px var(--mono);color:var(--muted)}
+.forum a{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 16px;border:1px solid var(--line);border-left:3px solid var(--accent);
+  border-radius:8px;background:var(--surface);color:var(--ink);text-decoration:none}
+.forum a:hover{border-color:var(--accent)}.forum b{color:var(--accent)}.forum span{color:var(--ink-2);font-size:15px}
 
 /* install steps: a real sequence */
 ol.steps{list-style:none;margin:0;padding:0;display:grid;gap:18px;counter-reset:s}
@@ -147,6 +150,7 @@ footer{font-size:14px;color:var(--muted);display:grid;gap:6px}
     <h1>Crime Advisor</h1>
     <p class="lede">Every option on Torn's Crimes pages, graded against your own average $/nerve. Worked out from your own crime logs, in your browser.</p>
     <div class="meta"><span>v2.3.10</span><span>Read-only</span><span>Your data stays in your browser</span></div>
+    <p class="forum"><a href="https://www.torn.com/forums.php#/p=threads&amp;f=67&amp;t=16612693&amp;b=0&amp;a=0" target="_blank" rel="noopener"><b>Join the thread on Torn's forums</b><span>Questions, ideas and what's new &#8599;</span></a></p>
   </header>
 
   <section aria-labelledby="look">
